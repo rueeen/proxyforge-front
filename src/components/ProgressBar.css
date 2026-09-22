@@ -1,0 +1,6 @@
+.progress-wrap { display: flex; align-items: center; gap: 12px; }
+.progress-track { position: relative; flex: 1; height: 30px; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; background: #151519; }
+.progress-completed, .progress-failed { position: absolute; inset: 0 auto 0 0; background: var(--accent); transition: opacity .2s; }
+.progress-failed { right: 0; left: auto; background: var(--error); }
+.progress-track strong { position: absolute; inset: 0; display: grid; place-items: center; color: white; font-size: .78rem; text-shadow: 0 1px 3px #000; }
+.failed-label { flex: none; color: var(--error); font-size: .84rem; font-weight: 700; }
