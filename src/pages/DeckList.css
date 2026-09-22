@@ -1,0 +1,18 @@
+.page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
+.page-heading h1 { margin-bottom: 8px; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; }
+.page-heading p:last-child { margin-bottom: 0; color: var(--text-muted); }
+.import-link { flex: none; text-decoration: none; }
+.deck-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; }
+.deck-card { position: relative; min-height: 220px; overflow: hidden; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); text-decoration: none; transition: transform .2s, border-color .2s; }
+.deck-card:hover { transform: translateY(-3px); border-color: #575164; }
+.deck-card-accent { position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--accent), #bc5cff); opacity: .8; }
+.deck-card-top, .deck-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.deck-label { color: var(--accent-hover); font-size: .7rem; font-weight: 800; letter-spacing: .16em; }
+.delete-button { padding: 5px 8px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: .76rem; }
+.delete-button:hover { color: var(--error); }
+.deck-card h2 { margin: 28px 0 8px; font-size: 1.35rem; }
+.deck-theme { min-height: 42px; color: var(--text-muted); font-size: .92rem; }
+.deck-meta { margin-top: 24px; padding-top: 15px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: .78rem; }
+.empty-state { padding: 70px 24px; border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface); text-align: center; }
+.empty-state p { margin-bottom: 28px; color: var(--text-muted); }.empty-state a { display: inline-block; text-decoration: none; }.empty-icon { color: var(--accent); font-size: 3rem; }.list-error { margin-bottom: 20px; }
+@media (max-width: 600px) { .page-heading { align-items: stretch; flex-direction: column; } .import-link { text-align: center; } }
