@@ -95,7 +95,7 @@ export default function DeckDetail() {
           finished = true;
           clearInterval(interval);
           if (nextJob.status === "failed") {
-            setNotice(nextJob.error_message);
+            setNotice(nextJob.error_message || "La generación falló.");
           } else if (nextJob.failed_cards > 0) {
             setNotice(`${nextJob.failed_cards} cartas fallaron, puedes regenerarlas individualmente.`);
           } else if (nextJob.status === "cancelled") {
