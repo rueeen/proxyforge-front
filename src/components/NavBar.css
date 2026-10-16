@@ -7,3 +7,5 @@
 .nav-links a:hover, .nav-links a.active { color: var(--text); background: var(--surface); }
 .nav-links a.active { color: #b7a9ff; }
 @media (max-width: 520px) { .navbar-inner { width: calc(100% - 24px); } .brand > span:last-child { display: none; } .nav-links a { padding-inline: 9px; font-size: .84rem; } }
+
+@media print { .navbar { display: none !important; } }

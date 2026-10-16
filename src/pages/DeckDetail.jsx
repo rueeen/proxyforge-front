@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api";
 import CardTile from "../components/CardTile";
+import ProxyCard from "../components/ProxyCard";
 import ProgressBar from "../components/ProgressBar";
 import "./DeckDetail.css";
 
@@ -19,6 +20,11 @@ export default function DeckDetail() {
   const [generating, setGenerating] = useState(false);
   const [notice, setNotice] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [symbols, setSymbols] = useState({});
+  const [view, setView] = useState("art");
+  const [planning, setPlanning] = useState(false);
+  const [editingAssignments, setEditingAssignments] = useState(0);
+  const [regeneratingCards, setRegeneratingCards] = useState(0);
 
   const loadDeck = useCallback(async (signal) => {
     const response = await api.get(`/decks/${id}/`, { signal });
@@ -46,6 +52,16 @@ export default function DeckDetail() {
         const [loadedDeck] = await Promise.all([
           loadDeck(controller.signal),
           loadEstimate(controller.signal),
+          api.get("/symbology/", { signal: controller.signal }).then((response) => {
+            const symbolMap = Object.fromEntries(response.data.map((item) => [item.symbol, item.svg_uri]));
+            if (!controller.signal.aborted) {
+              setSymbols(symbolMap);
+            }
+          }).catch(() => {
+            if (!controller.signal.aborted) {
+              setSymbols({});
+            }
+          }),
         ]);
         if (!controller.signal.aborted) {
           setJob(loadedDeck.active_job);
@@ -137,7 +153,7 @@ export default function DeckDetail() {
     setError("");
     setNotice("");
     try {
-      const response = await api.post(`/decks/${id}/generate/`);
+      const response = await api.post(`/decks/${id}/generate/`, {});
       setJob(response.data);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "No se pudo iniciar la generación.");
@@ -155,14 +171,61 @@ export default function DeckDetail() {
   }
 
   async function regenerateCard(cardId) {
-    const response = await api.post(`/cards/${cardId}/regenerate/`, {});
-    setDeck((current) => ({
-      ...current,
-      cards: current.cards.map((card) => {
-        return card.id === cardId ? response.data : card;
-      }),
-    }));
-    await loadEstimate();
+    setRegeneratingCards((count) => count + 1);
+    try {
+      const response = await api.post(`/cards/${cardId}/regenerate/`, {});
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      await loadEstimate();
+    } finally {
+      setRegeneratingCards((count) => count - 1);
+    }
+  }
+
+  async function createThemePlan() {
+    if (deck.has_theme_plan && !window.confirm(
+      "Se reasignarán las cartas no editadas a mano. Las imágenes de cartas cuyo elemento cambie quedarán pendientes."
+    )) {
+      return;
+    }
+    setPlanning(true);
+    setError("");
+    try {
+      const response = await api.post(`/decks/${id}/theme-plan/`, {
+        overwrite_edited: false,
+      });
+      setDeck(response.data);
+      setJob(response.data.active_job);
+      await loadEstimate();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "No se pudo crear el plan temático.");
+      if (requestError.response?.status === 409) {
+        try {
+          const loadedDeck = await loadDeck();
+          setJob(loadedDeck.active_job);
+        } catch (reloadError) {
+          setNotice(reloadError.response?.data?.detail || "No se pudo recuperar el proceso activo.");
+        }
+      }
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  async function saveAssignment(cardId, assignment) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const response = await api.patch(`/cards/${cardId}/theme-assignment/`, assignment);
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      await loadEstimate();
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
   }
 
   const sections = useMemo(() => {
@@ -205,6 +268,7 @@ export default function DeckDetail() {
   }
 
   const active = jobStatus === "pending" || jobStatus === "running";
+  const busy = active || generating || planning || editingAssignments > 0 || regeneratingCards > 0;
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || job?.failed_cards > 0;
 
   return (
@@ -222,6 +286,27 @@ export default function DeckDetail() {
         </div>
       </header>
       <section className="generation-panel">
+        <div className="theme-plan-panel">
+          <p>
+            {deck.has_theme_plan
+              ? "Plan temático listo."
+              : "Aún no hay plan temático. Se creará automáticamente al generar, o puedes crearlo ahora para revisarlo antes de gastar en imágenes."}
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={createThemePlan}
+            disabled={busy}
+          >
+            {deck.has_theme_plan ? "Rehacer plan" : "Crear plan temático"}
+          </button>
+          {planning && (
+            <div className="planning-status" role="status">
+              <span className="spinner" />
+              Planificando cartas según el tema…
+            </div>
+          )}
+        </div>
         <div className="generation-copy">
           <div>
             <p className="eyebrow">Generación</p>
@@ -230,19 +315,18 @@ export default function DeckDetail() {
           <button
             className="primary-button"
             onClick={generateArt}
-            disabled={active || generating || estimate.to_generate === 0}
+            disabled={busy || estimate.to_generate === 0}
           >
             {active || generating
               ? "Generando…"
-              : estimate.to_generate === 0 ? "Todo generado" : "Generar arte"}
+              : estimate.to_generate === 0 ? "Todo generado" : `Generar siguientes ${estimate.batch_size}`}
           </button>
         </div>
         <p className="estimate">
-          <strong>{estimate.unique_cards}</strong> cartas únicas <i>·</i>{" "}
-          <strong>{estimate.cached}</strong> ya generadas <i>·</i>{" "}
-          <strong>{estimate.to_generate}</strong> por generar <i>·</i>{" "}
-          costo estimado <strong>USD {estimate.estimated_cost_usd.toFixed(2)}</strong>
+          Esta tanda: <strong>{estimate.batch_size}</strong> cartas <i>·</i>{" "}
+          <strong>USD {estimate.batch_cost_usd.toFixed(2)}</strong>
         </p>
+        <p className="full-deck-estimate">Mazo completo: USD {estimate.estimated_cost_usd.toFixed(2)}</p>
         {active && (
           <ProgressBar
             completed={job.completed_cards}
@@ -257,6 +341,17 @@ export default function DeckDetail() {
         )}
         {error && <div className="error-panel generation-error">{error}</div>}
       </section>
+      <div className="deck-view-controls">
+        <div role="group" aria-label="Vista del mazo" className="view-tabs">
+          <button type="button" aria-pressed={view === "art"} onClick={() => setView("art")}>
+            Arte
+          </button>
+          <button type="button" aria-pressed={view === "card"} onClick={() => setView("card")}>
+            Carta
+          </button>
+        </div>
+        <Link className="secondary-button print-link" to={`/mazo/${id}/imprimir`}>Imprimir</Link>
+      </div>
       <div className="cards-area">
         {sections.map(([section, sectionCards]) => (
           <section className="card-section" key={section}>
@@ -266,14 +361,19 @@ export default function DeckDetail() {
                 <span>{sectionCards.length}</span>
               </div>
             )}
-            <div className="cards-grid">
+            <div className={view === "art" ? "cards-grid" : "proxy-cards-grid"}>
               {sectionCards.map((card) => (
-                <CardTile
-                  key={card.id}
-                  deckCard={card}
-                  onRegenerate={regenerateCard}
-                  disabled={active || generating}
-                />
+                view === "art" ? (
+                  <CardTile
+                    key={card.id}
+                    deckCard={card}
+                    onRegenerate={regenerateCard}
+                    onSaveAssignment={saveAssignment}
+                    disabled={busy}
+                  />
+                ) : (
+                  <ProxyCard key={card.id} deckCard={card} symbols={symbols} />
+                )
               ))}
             </div>
           </section>
