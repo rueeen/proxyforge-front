@@ -11,3 +11,49 @@
 .view-tabs button[aria-pressed="true"] { background: var(--accent); color: white; }
 .print-link { text-decoration: none; }
 .proxy-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, 63mm); gap: 20px; justify-content: center; }
+
+.theme-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-plan-link {
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.theme-plan-link:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
+.theme-brief {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-brief li {
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  overflow-wrap: anywhere;
+  font-size: .85rem;
+}
+
+.theme-plan-panel .theme-plan-warning {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 183, 77, .1);
+  color: #ffd08a;
+}
