@@ -20,7 +20,7 @@ export default function DeckImport() {
     try {
       const response = await api.post("/decks/", { name, raw_list: rawList, theme });
       const deck = response.data;
-      const cards = deck.cards || deck.deck_cards || [];
+      const cards = deck.cards;
       const unresolved = cards.filter((card) => card.resolution_error);
       if (unresolved.length) { setCreatedDeck(deck); setResolutionErrors(unresolved); }
       else navigate(`/mazo/${deck.id}`);
@@ -39,7 +39,7 @@ export default function DeckImport() {
         <div className="line-counter"><strong>{lineCount}</strong> {lineCount === 1 ? "línea no vacía" : "líneas no vacías"}</div>
         <label>Tema estético<input value={theme} onChange={(event) => setTheme(event.target.value)} required placeholder="ej: acuarela botánica, art nouveau, cyberpunk neón" disabled={loading} /><small>Describe un estilo visual, una atmósfera o una paleta; no una franquicia.</small></label>
         {error && <div className="error-panel">{error}<br /><button type="button" className="secondary-button" onClick={() => setError("")}>Reintentar</button></div>}
-        {resolutionErrors.length > 0 && <div className="resolution-warning"><h2>Algunas cartas no se encontraron</h2><p>Las cartas resueltas ya quedaron guardadas. Puedes continuar o corregir la lista.</p><ul>{resolutionErrors.map((card, index) => <li key={card.id || `${card.name}-${index}`}><strong>{card.name || card.raw_name || "Carta desconocida"}</strong><span>{card.resolution_error}</span></li>)}</ul><div className="warning-actions"><button type="button" className="primary-button" onClick={() => navigate(`/mazo/${createdDeck.id}`)}>Continuar igual</button><button type="button" className="secondary-button" onClick={() => { setResolutionErrors([]); setCreatedDeck(null); }}>Volver a editar</button></div></div>}
+        {resolutionErrors.length > 0 && <div className="resolution-warning"><h2>Algunas cartas no se encontraron</h2><p>Las cartas resueltas ya quedaron guardadas. Puedes continuar o corregir la lista.</p><ul>{resolutionErrors.map((card) => <li key={card.id}><strong>{card.raw_name}</strong><span>{card.resolution_error}</span></li>)}</ul><div className="warning-actions"><button type="button" className="primary-button" onClick={() => navigate(`/mazo/${createdDeck.id}`)}>Continuar igual</button><button type="button" className="secondary-button" onClick={() => { setResolutionErrors([]); setCreatedDeck(null); }}>Volver a editar</button></div></div>}
         {!resolutionErrors.length && <button className="primary-button submit-button" type="submit" disabled={loading}>{loading ? "Resolviendo cartas…" : "Importar y resolver"}</button>}
       </form>
     </section>
