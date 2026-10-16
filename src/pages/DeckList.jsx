@@ -23,7 +23,7 @@ export default function DeckList() {
       setError("");
       try {
         const response = await api.get("/decks/");
-        if (active) setDecks(Array.isArray(response.data) ? response.data : response.data.results || []);
+        if (active) setDecks(response.data);
       } catch (requestError) {
         if (active) setError(getErrorMessage(requestError));
       } finally {
@@ -65,7 +65,7 @@ export default function DeckList() {
       ) : (
         <div className="deck-grid">
           {decks.map((deck) => {
-            const count = deck.card_count ?? deck.total_cards ?? deck.cards?.length ?? 0;
+            const count = deck.card_count;
             return (
               <Link className="deck-card" to={`/mazo/${deck.id}`} key={deck.id}>
                 <div className="deck-card-accent" />
