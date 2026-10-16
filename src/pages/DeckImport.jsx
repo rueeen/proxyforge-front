@@ -56,7 +56,7 @@ export default function DeckImport() {
         setCreatedDeck(deck);
         setResolutionErrors(unresolved);
       } else {
-        navigate(`/mazo/${deck.id}`);
+        navigate(`/mazo/${deck.id}`, { state: { openInterview: true } });
       }
     } catch (requestError) {
       const data = requestError.response?.data;
@@ -172,7 +172,7 @@ export default function DeckImport() {
               <button
                 type="button"
                 className="primary-button"
-                onClick={() => navigate(`/mazo/${createdDeck.id}`)}
+                onClick={() => navigate(`/mazo/${createdDeck.id}`, { state: { openInterview: true } })}
               >
                 Continuar igual
               </button>

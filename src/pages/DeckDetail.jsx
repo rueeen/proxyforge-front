@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "../api";
 import CardTile from "../components/CardTile";
 import ProxyCard from "../components/ProxyCard";
 import ProgressBar from "../components/ProgressBar";
+import ThemeQuestions from "../components/ThemeQuestions";
 import "./DeckDetail.css";
 
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
@@ -12,6 +13,9 @@ const sectionNames = { commander: "Comandante", main: "Mazo principal", sideboar
 export default function DeckDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoInterviewHandled = useRef(null);
+  const panelRequest = useRef(false);
   const [deck, setDeck] = useState(null);
   const [estimate, setEstimate] = useState(null);
   const [job, setJob] = useState(null);
@@ -23,6 +27,13 @@ export default function DeckDetail() {
   const [symbols, setSymbols] = useState({});
   const [view, setView] = useState("art");
   const [planning, setPlanning] = useState(false);
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [preparingQuestions, setPreparingQuestions] = useState(false);
+  const [savingAnswers, setSavingAnswers] = useState(false);
+  const [questionsFailed, setQuestionsFailed] = useState(false);
+  const [panelError, setPanelError] = useState("");
+  const [questionsVersion, setQuestionsVersion] = useState(0);
+  const [planningWithAnswers, setPlanningWithAnswers] = useState(false);
   const [editingAssignments, setEditingAssignments] = useState(0);
   const [regeneratingCards, setRegeneratingCards] = useState(0);
 
@@ -43,6 +54,8 @@ export default function DeckDetail() {
 
     async function loadPage() {
       setLoading(true);
+      setInterviewOpen(false);
+      setPanelError("");
       setError("");
       setNotice("");
       setDeck(null);
@@ -85,6 +98,8 @@ export default function DeckDetail() {
 
   const jobId = job?.id;
   const jobStatus = job?.status;
+  const active = jobStatus === "pending" || jobStatus === "running";
+  const busy = active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -184,35 +199,127 @@ export default function DeckDetail() {
     }
   }
 
-  async function createThemePlan() {
-    if (deck.has_theme_plan && !window.confirm(
+  function replacePanelDeck(nextDeck) {
+    setDeck(nextDeck);
+    setJob(nextDeck.active_job);
+  }
+
+  async function handlePanelError(requestError, fallback) {
+    const data = requestError.response?.data;
+    setPanelError(data?.detail || data?.answers?.[0] || fallback);
+    if (requestError.response?.status === 409) {
+      try {
+        const loadedDeck = await loadDeck();
+        setJob(loadedDeck.active_job);
+      } catch {
+        setNotice("No se pudo recuperar el proceso activo.");
+      }
+    }
+  }
+
+  async function requestThemePlan() {
+    const response = await api.post(`/decks/${id}/theme-plan/`, {
+      overwrite_edited: false,
+    });
+    replacePanelDeck(response.data);
+    await loadEstimate();
+  }
+
+  async function createThemePlan({ confirm = true } = {}) {
+    if (panelRequest.current || busy) {
+      return;
+    }
+    if (confirm && deck.has_theme_plan && !deck.theme_plan_stale && !window.confirm(
       "Se reasignarán las cartas no editadas a mano. Las imágenes de cartas cuyo elemento cambie quedarán pendientes."
     )) {
       return;
     }
+    panelRequest.current = true;
     setPlanning(true);
-    setError("");
+    setPanelError("");
     try {
-      const response = await api.post(`/decks/${id}/theme-plan/`, {
-        overwrite_edited: false,
-      });
-      setDeck(response.data);
-      setJob(response.data.active_job);
-      await loadEstimate();
+      await requestThemePlan();
+      setInterviewOpen(false);
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "No se pudo crear el plan temático.");
-      if (requestError.response?.status === 409) {
-        try {
-          const loadedDeck = await loadDeck();
-          setJob(loadedDeck.active_job);
-        } catch (reloadError) {
-          setNotice(reloadError.response?.data?.detail || "No se pudo recuperar el proceso activo.");
-        }
-      }
+      await handlePanelError(requestError, "No se pudo crear el plan temático.");
     } finally {
+      panelRequest.current = false;
       setPlanning(false);
     }
   }
+
+  async function prepareQuestions() {
+    if (panelRequest.current || busy) {
+      return;
+    }
+    panelRequest.current = true;
+    setPreparingQuestions(true);
+    setQuestionsFailed(false);
+    setPanelError("");
+    try {
+      const response = await api.post(`/decks/${id}/theme-questions/`);
+      replacePanelDeck(response.data);
+      setQuestionsVersion((version) => version + 1);
+    } catch (requestError) {
+      setQuestionsFailed(true);
+      await handlePanelError(requestError, "No se pudieron preparar las preguntas.");
+    } finally {
+      panelRequest.current = false;
+      setPreparingQuestions(false);
+    }
+  }
+
+  function openInterview() {
+    if (busy || panelRequest.current) {
+      return;
+    }
+    setPanelError("");
+    setInterviewOpen(true);
+    if (!deck.theme_questions?.length) {
+      prepareQuestions();
+    }
+  }
+
+  async function submitAnswers(answers, { plan }) {
+    if (panelRequest.current || busy) {
+      return;
+    }
+    panelRequest.current = true;
+    setSavingAnswers(true);
+    setPanelError("");
+    try {
+      const response = await api.put(`/decks/${id}/theme-answers/`, { answers });
+      replacePanelDeck(response.data);
+      if (plan) {
+        setSavingAnswers(false);
+        setPlanningWithAnswers(true);
+        setPlanning(true);
+        await requestThemePlan();
+      }
+      setInterviewOpen(false);
+    } catch (requestError) {
+      await handlePanelError(requestError, "No se pudieron guardar las respuestas o crear el plan temático.");
+    } finally {
+      panelRequest.current = false;
+      setSavingAnswers(false);
+      setPlanning(false);
+      setPlanningWithAnswers(false);
+    }
+  }
+
+  useEffect(() => {
+    if (loading || busy || !deck || !estimate || !location.state?.openInterview || autoInterviewHandled.current === location.key) {
+      return;
+    }
+    autoInterviewHandled.current = location.key;
+    navigate(location.pathname, { replace: true, state: null });
+    if (!deck.has_theme_plan) {
+      setInterviewOpen(true);
+      if (!deck.theme_questions?.length && !panelRequest.current) {
+        prepareQuestions();
+      }
+    }
+  }, [loading, busy, deck, estimate, location, navigate]);
 
   async function saveAssignment(cardId, assignment) {
     setEditingAssignments((count) => count + 1);
@@ -267,8 +374,6 @@ export default function DeckDetail() {
     );
   }
 
-  const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = active || generating || planning || editingAssignments > 0 || regeneratingCards > 0;
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || job?.failed_cards > 0;
 
   return (
@@ -287,25 +392,81 @@ export default function DeckDetail() {
       </header>
       <section className="generation-panel">
         <div className="theme-plan-panel">
-          <p>
-            {deck.has_theme_plan
-              ? "Plan temático listo."
-              : "Aún no hay plan temático. Se creará automáticamente al generar, o puedes crearlo ahora para revisarlo antes de gastar en imágenes."}
-          </p>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={createThemePlan}
-            disabled={busy}
-          >
-            {deck.has_theme_plan ? "Rehacer plan" : "Crear plan temático"}
-          </button>
-          {planning && (
+          {interviewOpen ? (
+            preparingQuestions ? null : deck.theme_questions?.length ? (
+              <ThemeQuestions
+                key={`${id}-${questionsVersion}`}
+                questions={deck.theme_questions}
+                initialAnswers={deck.theme_answers || {}}
+                busy={busy}
+                onSubmit={submitAnswers}
+                onRegenerate={prepareQuestions}
+                onCancel={() => setInterviewOpen(false)}
+              />
+            ) : (
+              <>
+                <p>{questionsFailed ? "No se pudieron cargar las preguntas." : "Tu tema no necesita aclaraciones."}</p>
+                <div className="theme-plan-actions">
+                  {questionsFailed ? (
+                    <button type="button" className="secondary-button" disabled={busy} onClick={prepareQuestions}>Reintentar preguntas</button>
+                  ) : (
+                    <button type="button" className="primary-button" disabled={busy} onClick={() => createThemePlan({ confirm: false })}>Planificar ahora</button>
+                  )}
+                  <button type="button" className="theme-plan-link" disabled={busy} onClick={() => setInterviewOpen(false)}>Cerrar</button>
+                </div>
+              </>
+            )
+          ) : !deck.has_theme_plan ? (
+            <>
+              <p>Antes de planificar, Claude puede hacerte unas preguntas sobre el tema para personalizar el mazo.</p>
+              <div className="theme-plan-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={busy}
+                  onClick={deck.theme_brief?.length ? () => createThemePlan() : openInterview}
+                >
+                  {deck.theme_brief?.length ? "Planificar con mis respuestas" : "Responder preguntas"}
+                </button>
+                <button type="button" className="secondary-button" disabled={busy} onClick={() => createThemePlan()}>Planificar sin preguntas</button>
+                {Boolean(deck.theme_brief?.length) && (
+                  <button type="button" className="theme-plan-link" disabled={busy} onClick={openInterview}>Editar respuestas</button>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {deck.theme_plan_stale ? (
+                <p className="theme-plan-warning" role="status">Cambiaste tus respuestas después del último plan.</p>
+              ) : <p>Plan temático listo.</p>}
+              <div className="theme-plan-actions">
+                <button type="button" className="secondary-button" disabled={busy} onClick={() => createThemePlan()}>Rehacer plan</button>
+                <button type="button" className="theme-plan-link" disabled={busy} onClick={openInterview}>Editar respuestas</button>
+              </div>
+            </>
+          )}
+          {!interviewOpen && Boolean(deck.theme_brief?.length) && (
+            <ul className="theme-brief" aria-label="Resumen de respuestas">
+              {deck.theme_brief.map((item, index) => {
+                const shortQuestion = item.question.replace(/[¿?]/g, "").replace(/^(Qué|Quién|Cómo)\s+/i, "").trim();
+                return (
+                  <li key={`${item.question}-${index}`}>
+                    <strong>{shortQuestion.length > 60 ? item.question : shortQuestion}</strong>: {item.answer}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {(planning || preparingQuestions || savingAnswers) && (
             <div className="planning-status" role="status">
               <span className="spinner" />
-              Planificando cartas según el tema…
+              {preparingQuestions
+                ? "Preparando preguntas según tu mazo…"
+                : savingAnswers ? "Guardando respuestas…"
+                  : planningWithAnswers ? "Planificando cartas según tus respuestas…" : "Planificando cartas según el tema…"}
             </div>
           )}
+          {panelError && <div className="error-panel generation-error" role="alert">{panelError}</div>}
         </div>
         <div className="generation-copy">
           <div>
@@ -315,7 +476,7 @@ export default function DeckDetail() {
           <button
             className="primary-button"
             onClick={generateArt}
-            disabled={busy || estimate.to_generate === 0}
+            disabled={busy || interviewOpen || estimate.to_generate === 0}
           >
             {active || generating
               ? "Generando…"

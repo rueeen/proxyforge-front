@@ -1,0 +1,82 @@
+.theme-questions fieldset {
+  min-width: 0;
+  margin: 0 0 22px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.theme-questions legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.theme-questions .theme-question-help {
+  margin-top: 0;
+  color: var(--text-muted);
+}
+
+.theme-question-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.theme-question-option {
+  position: relative;
+  display: flex;
+  cursor: pointer;
+}
+
+.theme-question-choice {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.theme-question-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.theme-question-card small {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.theme-question-choice:checked + .theme-question-card {
+  border-color: var(--accent);
+  background: rgba(124, 92, 255, .12);
+}
+
+.theme-question-choice:focus-visible + .theme-question-card {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.theme-question-other {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theme-question-other input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.theme-questions fieldset:disabled {
+  opacity: .65;
+}
