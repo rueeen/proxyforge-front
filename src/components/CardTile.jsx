@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import "./CardTile.css";
 
-export default function CardTile({ deckCard, onRegenerate, disabled = false }) {
+export default function CardTile({ deckCard, onRegenerate, onSaveAssignment, disabled = false }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState("");
+  const [element, setElement] = useState("");
+  const [category, setCategory] = useState("");
+  const [visualBrief, setVisualBrief] = useState("");
   const card = deckCard.card;
   const generatedImage = deckCard.generated_image;
   const generatedUrl = generatedImage?.image_url;
@@ -40,6 +46,36 @@ export default function CardTile({ deckCard, onRegenerate, disabled = false }) {
     }
   }
 
+  function editAssignment() {
+    setElement(deckCard.theme_assignment?.element || "");
+    setCategory(deckCard.theme_assignment?.category || "");
+    setVisualBrief(deckCard.theme_assignment?.visual_brief || "");
+    setAssignmentError("");
+    setEditing(true);
+  }
+
+  async function saveAssignment(event) {
+    event.preventDefault();
+    setSaving(true);
+    setAssignmentError("");
+    try {
+      await onSaveAssignment(deckCard.id, {
+        element,
+        category,
+        visual_brief: visualBrief,
+      });
+      setEditing(false);
+    } catch (requestError) {
+      const data = requestError.response?.data;
+      const firstMessage = data && typeof data === "object"
+        ? Object.values(data).flat()[0]
+        : null;
+      setAssignmentError(data?.detail || firstMessage || "No se pudo guardar la asignación.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <article className={`card-tile ${deckCard.resolution_error ? "card-tile-error" : ""}`}>
       <div className="card-image-wrap">
@@ -69,7 +105,7 @@ export default function CardTile({ deckCard, onRegenerate, disabled = false }) {
             <button
               type="button"
               onClick={regenerate}
-              disabled={disabled || regenerating}
+              disabled={disabled || regenerating || saving || editing}
             >
               {regenerating ? "Generando…" : generatedUrl ? "Regenerar" : "Generar"}
             </button>
@@ -85,6 +121,65 @@ export default function CardTile({ deckCard, onRegenerate, disabled = false }) {
           <p className="card-themed-name">{generatedImage.themed_name}</p>
         )}
         <p>{card?.type_line}</p>
+        {card !== null && (
+          <div className="card-assignment">
+            {deckCard.theme_assignment && (
+              <div className="assignment-label">
+                <strong>{deckCard.theme_assignment.element}</strong>
+                <span>{deckCard.theme_assignment.category}</span>
+                {deckCard.theme_assignment.edited && <small>editado</small>}
+              </div>
+            )}
+            {!editing ? (
+              <button
+                type="button"
+                className="assignment-edit-button"
+                onClick={editAssignment}
+                disabled={disabled || regenerating || saving}
+              >
+                Editar tema
+              </button>
+            ) : (
+              <form className="assignment-form" onSubmit={saveAssignment}>
+                <label>
+                  Elemento
+                  <input
+                    value={element}
+                    onChange={(event) => setElement(event.target.value)}
+                    required
+                    disabled={disabled || saving}
+                  />
+                </label>
+                <label>
+                  Categoría
+                  <input
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                    disabled={disabled || saving}
+                  />
+                </label>
+                <label>
+                  Descripción visual
+                  <textarea
+                    value={visualBrief}
+                    onChange={(event) => setVisualBrief(event.target.value)}
+                    rows="4"
+                    disabled={disabled || saving}
+                  />
+                </label>
+                <div className="assignment-actions">
+                  <button type="submit" className="secondary-button" disabled={disabled || saving}>
+                    {saving ? "Guardando…" : "Guardar"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={() => setEditing(false)} disabled={saving}>
+                    Cancelar
+                  </button>
+                </div>
+                {assignmentError && <div className="card-resolution-error" role="alert">{assignmentError}</div>}
+              </form>
+            )}
+          </div>
+        )}
         {deckCard.resolution_error && (
           <div className="card-resolution-error">{deckCard.resolution_error}</div>
         )}

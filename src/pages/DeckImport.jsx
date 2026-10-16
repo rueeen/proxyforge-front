@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import "./DeckImport.css";
 
 export default function DeckImport() {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const [readingFile, setReadingFile] = useState(false);
   const [name, setName] = useState("");
   const [rawList, setRawList] = useState("");
   const [theme, setTheme] = useState("");
@@ -15,6 +17,29 @@ export default function DeckImport() {
   const lineCount = useMemo(() => {
     return rawList.split("\n").filter((line) => line.trim()).length;
   }, [rawList]);
+
+  function loadFile(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+    const reader = new FileReader();
+    setReadingFile(true);
+    setError("");
+    reader.onload = () => {
+      setRawList(reader.result);
+      setName((current) => current.trim() ? current : file.name.replace(/\.[^.]+$/, ""));
+      setCreatedDeck(null);
+      setResolutionErrors([]);
+      setReadingFile(false);
+    };
+    reader.onerror = () => {
+      setError("No se pudo leer el archivo.");
+      setReadingFile(false);
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  }
 
   async function submitDeck(event) {
     event.preventDefault();
@@ -62,9 +87,28 @@ export default function DeckImport() {
             onChange={(event) => setName(event.target.value)}
             required
             placeholder="Mi mazo de Commander"
-            disabled={loading}
+            disabled={loading || readingFile}
           />
         </label>
+        <div className="file-import">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.csv,.dek,text/plain,text/csv"
+            hidden
+            onChange={loadFile}
+            disabled={loading || readingFile}
+            aria-label="Archivo de mazo"
+          />
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => fileInputRef.current.click()}
+            disabled={loading || readingFile}
+          >
+            {readingFile ? "Leyendo archivo…" : "Cargar archivo"}
+          </button>
+        </div>
         <label>
           Lista de cartas
           <textarea
@@ -72,9 +116,13 @@ export default function DeckImport() {
             value={rawList}
             onChange={(event) => setRawList(event.target.value)}
             required
-            placeholder={"4 Lightning Bolt\n1 Sol Ring (c21) 263\n2x Counterspell\nCommander\n1 Atraxa, Praetors' Voice"}
-            disabled={loading}
+            placeholder={"4x Lightning Bolt\n1 Sol Ring (c21) 263\n2 Counterspell\nCommander\n1 Atraxa, Praetors' Voice"}
+            disabled={loading || readingFile}
           />
+          <small>
+            Acepta listas como las del Deck Builder de Card Kingdom (<code>4 Lightning Bolt</code>),
+            exportaciones de Moxfield, Archidekt, MTGGoldfish o EDHREC, y CSV con columnas de nombre y cantidad.
+          </small>
         </label>
         <div className="line-counter">
           <strong>{lineCount}</strong>{" "}
@@ -87,7 +135,7 @@ export default function DeckImport() {
             onChange={(event) => setTheme(event.target.value)}
             required
             placeholder="ej: acuarela botánica, Studio Ghibli, cyberpunk neón, al estilo de Moebius"
-            disabled={loading}
+            disabled={loading || readingFile}
           />
           <small>
             Puede ser un estilo, una paleta, una franquicia, un personaje o un artista. Se aplica tal cual.
@@ -145,7 +193,7 @@ export default function DeckImport() {
           <button
             className="primary-button submit-button"
             type="submit"
-            disabled={loading}
+            disabled={loading || readingFile}
           >
             {loading ? "Resolviendo cartas…" : "Importar y resolver"}
           </button>

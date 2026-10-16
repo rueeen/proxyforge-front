@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import NavBar from "./components/NavBar";
 import DeckDetail from "./pages/DeckDetail";
 import DeckImport from "./pages/DeckImport";
+import PrintSheet from "./pages/PrintSheet";
 import DeckList from "./pages/DeckList";
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<DeckList />} />
           <Route path="/importar" element={<DeckImport />} />
+          <Route path="/mazo/:id/imprimir" element={<PrintSheet />} />
           <Route path="/mazo/:id" element={<DeckDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

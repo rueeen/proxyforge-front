@@ -1,0 +1,30 @@
+@page a4 { size: A4; margin: 5mm; }
+@page letter { size: letter; margin: 5mm; }
+.print-controls { padding: 24px; margin-bottom: 30px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.print-controls h1 { margin-top: 20px; font-size: 1.6rem; }
+.print-controls p { margin: 18px 0 0; color: var(--text-muted); font-size: .88rem; }
+.print-options { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; margin-bottom: 24px; }
+.print-options label { display: grid; gap: 8px; font-size: .85rem; }
+.print-options select { padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); color: var(--text); font: inherit; }
+.print-options .print-checkbox { display: flex; align-items: center; gap: 8px; }
+.print-pages { overflow-x: auto; padding: 0 8px 30px; }
+.print-page { position: relative; display: grid; align-content: center; justify-content: center; flex: none; padding: 5mm; margin: 30px auto; background: white; box-shadow: 0 5px 25px #0005; color: #111; break-after: page; }
+.paper-a4 .print-page { page: a4; width: 210mm; height: 297mm; }
+.paper-letter .print-page { page: letter; width: 215.9mm; height: 279.4mm; }
+.print-page:last-child { break-after: auto; }
+.print-grid { display: grid; grid-template-columns: repeat(3, 63mm); grid-template-rows: repeat(3, 88mm); gap: 0; width: 189mm; height: 264mm; }
+.print-card-slot { position: relative; width: 63mm; height: 88mm; }
+.print-page-counter { position: absolute; top: 1.5mm; left: 0; width: 100%; margin: 0; text-align: center; font: 8pt system-ui, sans-serif; color: #666; }
+.with-cut-marks .print-card-slot::before,
+.with-cut-marks .print-card-slot::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background-image: linear-gradient(#999, #999), linear-gradient(#999, #999), linear-gradient(#999, #999), linear-gradient(#999, #999); background-position: left top, right top, left bottom, right bottom; background-repeat: no-repeat; }
+.with-cut-marks .print-card-slot::before { background-size: 2mm .15mm; }
+.with-cut-marks .print-card-slot::after { background-size: .15mm 2mm; }
+@media print {
+  html, html body, body #root { min-width: 0; min-height: 0; height: auto; margin: 0; padding: 0; background: white; color-scheme: light; }
+  #root .app-content { width: auto; max-width: none; margin: 0; padding: 0; }
+  .print-controls, .print-page-counter, .print-empty { display: none !important; }
+  .print-pages { overflow: visible; padding: 0; }
+  .print-page { margin: 0; padding: 0; box-shadow: none; break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .paper-a4 .print-page { width: 200mm; height: 287mm; }
+  .paper-letter .print-page { width: 205.9mm; height: 269.4mm; }
+}
