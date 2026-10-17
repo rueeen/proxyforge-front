@@ -469,10 +469,5 @@
 }
 
 .borderless > .proxy-art-image {
-  transform-origin: center top;
-}
-
-.borderless > .proxy-art-fade {
-  mask-image: linear-gradient(to bottom, transparent 0, #000 calc(var(--offset) * 1% + 4%));
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 calc(var(--offset) * 1% + 4%));
+  max-width: none;
 }

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import "./ProxyCard.css";
+import { artBounds, artStyle } from "../artFraming";
 import { readableText, rgba, rarityGem } from "../colorUtils";
 
 const defaultFrames = {
@@ -109,11 +110,8 @@ function BorderlessLayout({ data, nameRef, textRef, typeRef, onArtLoad, landscap
       )}
       {art ? (
         <img
-          className={`proxy-art-image ${data.offset > 0 ? "proxy-art-fade" : ""}`}
-          style={{
-            "--offset": data.offset,
-            transform: `translateY(${data.offset}%) scale(${data.zoom / 100})`,
-          }}
+          className="proxy-art-image"
+          style={artStyle(data.bounds)}
           src={art}
           alt={`Ilustración de ${originalName}`}
           onLoad={onArtLoad}
@@ -160,7 +158,7 @@ export default function ProxyCard({
   const textRef = useRef(null);
   const nameRef = useRef(null);
   const typeRef = useRef(null);
-  const [landscapeArt, setLandscapeArt] = useState(null);
+  const [artDimensions, setArtDimensions] = useState(null);
   const card = deckCard.card;
   const generated = deckCard.generated_image;
   const face = card?.card_faces?.[0] ?? card;
@@ -177,11 +175,17 @@ export default function ProxyCard({
   const frame = { ...defaultFrames[color], ...generated?.frame_style };
   const hasStats = (face?.power != null && face.power !== "") || (face?.loyalty != null && face.loyalty !== "");
   const borderless = layout !== "classic";
-  const landscape = Boolean(art) && landscapeArt === art;
+  const dimensions = generated?.width > 0 && generated?.height > 0
+    ? { width: generated.width, height: generated.height }
+    : artDimensions?.url === art ? artDimensions : null;
+  const landscape = Boolean(dimensions && dimensions.width > dimensions.height);
   const gem = rarityGem(card?.rarity);
   const data = {
-    offset: framingOverride?.offset ?? generated?.framing_offset_y ?? 0,
-    zoom: framingOverride?.zoom ?? generated?.framing_zoom ?? 100,
+    bounds: artBounds(dimensions?.width, dimensions?.height, {
+      offsetX: framingOverride?.offsetX ?? generated?.framing_offset_x ?? 0,
+      offsetY: framingOverride?.offsetY ?? generated?.framing_offset_y ?? 0,
+      zoom: framingOverride?.zoom ?? generated?.framing_zoom ?? 100,
+    }),
     card,
     face,
     name,
@@ -260,7 +264,7 @@ export default function ProxyCard({
           landscape={landscape}
           onArtLoad={(event) => {
             const image = event.currentTarget;
-            setLandscapeArt(image.naturalWidth > image.naturalHeight ? art : null);
+            setArtDimensions({ url: art, width: image.naturalWidth, height: image.naturalHeight });
           }}
         />
       ) : <ClassicLayout data={data} nameRef={nameRef} textRef={textRef} />}

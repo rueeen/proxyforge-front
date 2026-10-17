@@ -13,6 +13,7 @@ export default function CardTile({
   onRetryAutoReference,
   onLoadWikiImages,
   onPickWikiImage,
+  onUploadBrowserReferences,
   disabled = false,
   layout = "borderless",
 }) {
@@ -687,6 +688,7 @@ export default function CardTile({
           initialPage={wikiPicker.page}
           loadImages={(wiki, page) => onLoadWikiImages(deckCard.id, wiki, page)}
           onPick={pickWikiImage}
+          onUploadBrowser={(files, urls, mode) => onUploadBrowserReferences(deckCard.id, files, urls, mode)}
           onPasteFile={async (file) => {
             const added = await addReference({ file }, true);
             if (!added) {
