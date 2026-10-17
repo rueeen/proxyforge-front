@@ -27,6 +27,8 @@ export default function DeckDetail() {
   const [symbols, setSymbols] = useState({});
   const [view, setView] = useState("art");
   const [changingLayout, setChangingLayout] = useState(false);
+  const [searchingReferences, setSearchingReferences] = useState(false);
+  const [autoReferenceSummary, setAutoReferenceSummary] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [preparingQuestions, setPreparingQuestions] = useState(false);
@@ -57,6 +59,7 @@ export default function DeckDetail() {
       setLoading(true);
       setInterviewOpen(false);
       setPanelError("");
+      setAutoReferenceSummary(null);
       setError("");
       setNotice("");
       setDeck(null);
@@ -100,7 +103,7 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -360,7 +363,8 @@ export default function DeckDetail() {
         ...current,
         cards: current.cards.map((card) => card.id === cardId ? response.data : card),
       }));
-      await loadEstimate();
+      await Promise.all([loadEstimate(), loadDeck()]);
+      return response.data;
     } finally {
       setEditingAssignments((count) => count - 1);
     }
@@ -381,7 +385,8 @@ export default function DeckDetail() {
         ...current,
         cards: current.cards.map((card) => card.id === cardId ? response.data : card),
       }));
-      await loadEstimate();
+      await Promise.all([loadEstimate(), loadDeck()]);
+      return response.data;
     } finally {
       setEditingAssignments((count) => count - 1);
     }
@@ -395,7 +400,54 @@ export default function DeckDetail() {
         ...current,
         cards: current.cards.map((card) => card.id === cardId ? response.data : card),
       }));
+      await Promise.all([loadEstimate(), loadDeck()]);
+      return response.data;
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
+  async function searchAutoReferences(force = false) {
+    if (busy || panelRequest.current) {
+      return;
+    }
+    const failedIds = deck.cards.filter((card) => (
+      card.theme_assignment?.needs_reference &&
+      ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
+    )).map((card) => card.id);
+    if (force && failedIds.length === 0) {
+      return;
+    }
+    panelRequest.current = true;
+    setSearchingReferences(true);
+    setAutoReferenceSummary(null);
+    setPanelError("");
+    try {
+      const body = force ? { force: true, deck_card_ids: failedIds } : { force: false };
+      const response = await api.post(`/decks/${id}/auto-references/`, body);
+      replacePanelDeck(response.data);
+      setAutoReferenceSummary(response.data.auto_reference_summary);
       await loadEstimate();
+    } catch (requestError) {
+      await handlePanelError(requestError, "No se pudieron buscar las referencias automáticas.");
+    } finally {
+      panelRequest.current = false;
+      setSearchingReferences(false);
+    }
+  }
+
+  async function retryAutoReference(cardId) {
+    setEditingAssignments((count) => count + 1);
+    setAutoReferenceSummary(null);
+    try {
+      const response = await api.post(`/cards/${cardId}/theme-assignment/auto-reference/`, { force: true });
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      // The DeckCard response does not contain the deck-level reference counts.
+      await Promise.all([loadEstimate(), loadDeck()]);
+      return response.data;
     } finally {
       setEditingAssignments((count) => count - 1);
     }
@@ -440,6 +492,10 @@ export default function DeckDetail() {
     );
   }
 
+  const failedAutoReferences = deck.cards.filter((card) => (
+    card.theme_assignment?.needs_reference &&
+    ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
+  ));
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || job?.failed_cards > 0;
 
   return (
@@ -522,6 +578,46 @@ export default function DeckDetail() {
                 );
               })}
             </ul>
+          )}
+          {deck.has_theme_plan && deck.auto_reference_counts?.needed > 0 && (
+            <div className="auto-reference-panel">
+              <p>
+                <strong>{deck.auto_reference_counts.needed}</strong> cartas con personajes u objetos icónicos · {" "}
+                <strong>{deck.auto_reference_counts.with_reference}</strong> con referencia
+              </p>
+              {deck.auto_reference_counts.pending > 0 ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => searchAutoReferences()}
+                >
+                  Buscar referencias automáticas ({deck.auto_reference_counts.pending})
+                </button>
+              ) : failedAutoReferences.length > 0 && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => searchAutoReferences(true)}
+                >
+                  Reintentar fallidas
+                </button>
+              )}
+              {searchingReferences && (
+                <div className="planning-status" role="status">
+                  <span className="spinner" />
+                  Buscando imágenes en la wiki… (puede tardar un poco)
+                </div>
+              )}
+              {autoReferenceSummary && (
+                <p className="auto-reference-summary" role="status">
+                  Encontradas: {autoReferenceSummary.found} · No encontradas: {autoReferenceSummary.not_found} · {" "}
+                  Descartadas: {autoReferenceSummary.rejected} · Errores: {autoReferenceSummary.error}
+                </p>
+              )}
+              <p>Si no buscas antes, las referencias se buscan solas al generar cada tanda.</p>
+            </div>
           )}
           {(planning || preparingQuestions || savingAnswers) && (
             <div className="planning-status" role="status">
@@ -611,6 +707,7 @@ export default function DeckDetail() {
                     onSaveAssignment={saveAssignment}
                     onAddReference={addReference}
                     onRemoveReference={removeReference}
+                    onRetryAutoReference={retryAutoReference}
                     disabled={busy}
                   />
                 ) : (

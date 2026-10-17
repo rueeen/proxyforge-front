@@ -106,3 +106,85 @@
 .card-overlay {
   flex-wrap: wrap;
 }
+
+.auto-reference-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: .72rem;
+}
+
+.auto-reference-status small {
+  flex-basis: 100%;
+  color: #e8bf7a;
+  overflow-wrap: anywhere;
+}
+
+.reference-status {
+  padding: 3px 7px;
+  border-radius: 8px;
+}
+
+.reference-status-pending {
+  background: #9a9aa814;
+  color: var(--text-muted);
+}
+
+.reference-status-found {
+  background: #74c99a18;
+  color: #91d7af;
+}
+
+.reference-status-warning {
+  background: #e8bf7a18;
+  color: #e8bf7a;
+}
+
+.reference-status-error {
+  background: #ff5c5c18;
+  color: #ffaaaa;
+}
+
+.reference-retry {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #b9abff;
+  font-size: .74rem;
+  cursor: pointer;
+}
+
+.reference-auto-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  padding: .3mm .7mm;
+  border-radius: 0 1mm 0 1.5mm;
+  background: #000a;
+  color: #fff;
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.assignment-form .reference-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assignment-form .reference-checkbox input {
+  width: auto;
+}
+
+.reference-wiki-search {
+  justify-self: start;
+  padding: 7px 10px;
+  font-size: .78rem;
+}
+
+.reference-source {
+  margin: 12px 0;
+  color: var(--text);
+}

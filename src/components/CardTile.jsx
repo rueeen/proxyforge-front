@@ -7,6 +7,7 @@ export default function CardTile({
   onSaveAssignment,
   onAddReference,
   onRemoveReference,
+  onRetryAutoReference,
   disabled = false,
   layout = "borderless",
 }) {
@@ -20,19 +21,44 @@ export default function CardTile({
   const [category, setCategory] = useState("");
   const [visualBrief, setVisualBrief] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
+  const [needsReference, setNeedsReference] = useState(false);
+  const [referenceWiki, setReferenceWiki] = useState("");
+  const [referencePage, setReferencePage] = useState("");
+  const [searchingReference, setSearchingReference] = useState(false);
   const [addingReference, setAddingReference] = useState(false);
   const [removingReference, setRemovingReference] = useState(false);
   const [referenceError, setReferenceError] = useState("");
   const fileInputRef = useRef(null);
   const referenceRequest = useRef(false);
   const references = deckCard.theme_assignment?.references || [];
-  const referenceBusy = addingReference || removingReference;
+  const referenceBusy = addingReference || removingReference || searchingReference;
   const controlsDisabled = disabled || regenerating || saving || referenceBusy;
   const maximumReferences = references.length >= 3;
   const card = deckCard.card;
   const generatedImage = deckCard.generated_image;
   const generatedUrl = generatedImage?.image_url;
   const name = card?.name ?? deckCard.raw_name;
+  const assignment = deckCard.theme_assignment;
+  const referenceStatus = references.length > 0 ? "found" : assignment?.auto_reference_status || "";
+  const referenceStatuses = {
+    "": { label: "Referencia pendiente", tone: "pending" },
+    found: { label: "Con referencia", tone: "found" },
+    not_found: { label: "Sin imagen en la wiki", tone: "warning" },
+    rejected: { label: "Imagen descartada", tone: "warning" },
+    error: { label: "Error al buscar", tone: "error" },
+  };
+  const status = referenceStatuses[referenceStatus] || referenceStatuses[""];
+  const retryable = ["not_found", "rejected", "error"].includes(referenceStatus);
+  const referenceStatusDisplay = assignment?.needs_reference && (
+    <div className="auto-reference-status" aria-live="polite">
+      <span className={`reference-status reference-status-${status.tone}`} title={assignment.auto_reference_message || undefined}>
+        {status.label}
+      </span>
+      {referenceStatus === "rejected" && assignment.auto_reference_message && (
+        <small>{assignment.auto_reference_message}</small>
+      )}
+    </div>
+  );
 
   useEffect(() => {
     if (!modalOpen) {
@@ -69,6 +95,10 @@ export default function CardTile({
     setCategory(deckCard.theme_assignment?.category || "");
     setVisualBrief(deckCard.theme_assignment?.visual_brief || "");
     setAssignmentError("");
+    setReferenceError("");
+    setNeedsReference(Boolean(assignment?.needs_reference));
+    setReferenceWiki(assignment?.reference_wiki || "");
+    setReferencePage(assignment?.reference_page || "");
     setEditing(true);
   }
 
@@ -81,6 +111,9 @@ export default function CardTile({
         element,
         category,
         visual_brief: visualBrief,
+        needs_reference: needsReference,
+        reference_wiki: referenceWiki.trim(),
+        reference_page: referencePage.trim(),
       });
       setEditing(false);
     } catch (requestError) {
@@ -140,6 +173,36 @@ export default function CardTile({
     } finally {
       referenceRequest.current = false;
       setRemovingReference(false);
+    }
+  }
+
+  async function retryAutoReference(saveChanges = false) {
+    if (referenceRequest.current || controlsDisabled) {
+      return;
+    }
+    referenceRequest.current = true;
+    setSearchingReference(true);
+    setReferenceError("");
+    try {
+      const changed = needsReference !== Boolean(assignment?.needs_reference) ||
+        referenceWiki.trim() !== (assignment?.reference_wiki || "") ||
+        referencePage.trim() !== (assignment?.reference_page || "");
+      if (saveChanges && changed) {
+        await onSaveAssignment(deckCard.id, {
+          element,
+          category,
+          visual_brief: visualBrief,
+          needs_reference: needsReference,
+          reference_wiki: referenceWiki.trim(),
+          reference_page: referencePage.trim(),
+        });
+      }
+      await onRetryAutoReference(deckCard.id);
+    } catch (requestError) {
+      setReferenceError(requestError.response?.data?.detail || "No se pudo buscar la referencia en la wiki.");
+    } finally {
+      referenceRequest.current = false;
+      setSearchingReference(false);
     }
   }
 
@@ -204,6 +267,17 @@ export default function CardTile({
                 {deckCard.theme_assignment.edited && <small>editado</small>}
               </div>
             )}
+            {referenceStatusDisplay}
+            {assignment?.needs_reference && retryable && (
+              <button
+                type="button"
+                className="reference-retry"
+                disabled={controlsDisabled}
+                onClick={() => retryAutoReference()}
+              >
+                Reintentar
+              </button>
+            )}
             {references.length > 0 && (
               <div className="reference-thumbnails" aria-label="Imágenes de referencia">
                 {references.map((reference, index) => (
@@ -215,10 +289,12 @@ export default function CardTile({
                       onClick={() => setModalOpen({
                         url: reference.image_url,
                         alt: `Referencia ${index + 1} de ${name}`,
+                        sourceUrl: reference.origin === "auto" ? reference.source_url : null,
                       })}
                     >
                       <img src={reference.image_url} alt={`Referencia ${index + 1} de ${name}`} />
                     </button>
+                    {reference.origin === "auto" && <span className="reference-auto-badge">auto</span>}
                     <button
                       type="button"
                       className="reference-remove"
@@ -271,6 +347,48 @@ export default function CardTile({
                 </label>
                 <section className="reference-section" aria-label="Imágenes de referencia (máx. 3)">
                   <h4>Imágenes de referencia (máx. 3)</h4>
+                  <label className="reference-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={needsReference}
+                      onChange={(event) => setNeedsReference(event.target.checked)}
+                      disabled={controlsDisabled}
+                    />
+                    Este elemento necesita referencia
+                  </label>
+                  <label>
+                    Wiki (dominio)
+                    <input
+                      value={referenceWiki}
+                      onChange={(event) => setReferenceWiki(event.target.value)}
+                      placeholder="warcraft.wiki.gg"
+                      disabled={controlsDisabled || !needsReference}
+                    />
+                  </label>
+                  <label>
+                    Página
+                    <input
+                      value={referencePage}
+                      onChange={(event) => setReferencePage(event.target.value)}
+                      placeholder="Vol'jin"
+                      disabled={controlsDisabled || !needsReference}
+                    />
+                  </label>
+                  <p>Dominio de la wiki de la franquicia (Fandom, wiki.gg…) y el título exacto de la página del personaje.</p>
+                  {assignment && (
+                    <button
+                      type="button"
+                      className="secondary-button reference-wiki-search"
+                      disabled={controlsDisabled || !needsReference || !referenceWiki.trim() || !referencePage.trim() || !element.trim()}
+                      onClick={() => retryAutoReference(true)}
+                    >
+                      Buscar en la wiki
+                    </button>
+                  )}
+                  {referenceStatusDisplay}
+                  {editing && assignment?.auto_reference_message && referenceStatus !== "rejected" && (
+                    <p className="reference-search-message">{assignment.auto_reference_message}</p>
+                  )}
                   {!deckCard.theme_assignment ? (
                     <p>Guarda primero el elemento temático para poder agregar referencias.</p>
                   ) : (
@@ -341,6 +459,7 @@ export default function CardTile({
                 {assignmentError && <div className="card-resolution-error" role="alert">{assignmentError}</div>}
               </form>
             )}
+            {searchingReference && <p role="status">Buscando imágenes en la wiki…</p>}
             {removingReference && <p role="status">Quitando referencia…</p>}
             {referenceError && <div className="card-resolution-error" role="alert">{referenceError}</div>}
           </div>
@@ -365,6 +484,11 @@ export default function CardTile({
           <button onClick={() => setModalOpen(null)} aria-label="Cerrar imagen">×</button>
           <div className="image-modal-content">
             <img src={modalOpen.url} alt={modalOpen.alt} />
+            {modalOpen.sourceUrl && (
+              <p className="reference-source">
+                <a href={modalOpen.sourceUrl} target="_blank" rel="noreferrer">Ver origen</a>
+              </p>
+            )}
             {modalOpen.flavor && (
               <p className="image-modal-flavor"><em>{modalOpen.flavor}</em></p>
             )}
