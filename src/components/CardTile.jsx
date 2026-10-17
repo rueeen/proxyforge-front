@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./CardTile.css";
 
 export default function CardTile({
@@ -502,7 +503,7 @@ export default function CardTile({
         )}
         {error && <div className="card-resolution-error">{error}</div>}
       </div>
-      {modalOpen && (
+      {modalOpen && createPortal(
         <div
           className="image-modal"
           role="dialog"
@@ -526,7 +527,8 @@ export default function CardTile({
               <p className="image-modal-flavor"><em>{modalOpen.flavor}</em></p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </article>
   );
