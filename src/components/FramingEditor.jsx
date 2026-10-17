@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ProxyCard from "./ProxyCard";
 import "./FramingEditor.css";
 
@@ -82,7 +83,7 @@ export default function FramingEditor({ deckCard, symbols, layout, busy, onSave,
     }
   }
 
-  return (
+  return createPortal(
     <div className="framing-overlay">
       <section
         className="framing-editor"
@@ -143,6 +144,7 @@ export default function FramingEditor({ deckCard, symbols, layout, busy, onSave,
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
