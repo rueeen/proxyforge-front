@@ -1,0 +1,115 @@
+.framing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #000c;
+}
+
+.framing-editor {
+  width: min(850px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.framing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.framing-header h2 {
+  margin: 0;
+}
+
+.framing-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.framing-preview-space {
+  flex: none;
+  width: 100.8mm;
+  height: 140.8mm;
+}
+
+.framing-preview {
+  width: 63mm;
+  height: 88mm;
+  transform: scale(1.6);
+  transform-origin: top left;
+}
+
+.framing-controls {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 16px;
+}
+
+.framing-controls label {
+  display: grid;
+  gap: 8px;
+}
+
+.framing-controls input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.framing-controls p,
+.framing-source {
+  color: var(--text-muted);
+  font-size: .8rem;
+}
+
+.framing-controls p {
+  margin: 0;
+}
+
+.framing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 750px) {
+  .framing-body {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .framing-controls {
+    width: 100%;
+  }
+}
+
+@media (max-width: 450px) {
+  .framing-preview-space {
+    width: 75.6mm;
+    height: 105.6mm;
+  }
+
+  .framing-preview {
+    transform: scale(1.2);
+  }
+
+  .framing-overlay,
+  .framing-editor {
+    padding: 10px;
+  }
+}
+
+@media print {
+  .framing-overlay {
+    display: none;
+  }
+}

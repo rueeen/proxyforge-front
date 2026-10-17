@@ -5,6 +5,7 @@ import CardTile from "../components/CardTile";
 import ProxyCard from "../components/ProxyCard";
 import ProgressBar from "../components/ProgressBar";
 import ThemeQuestions from "../components/ThemeQuestions";
+import FramingEditor from "../components/FramingEditor";
 import "./DeckDetail.css";
 
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
@@ -26,6 +27,9 @@ export default function DeckDetail() {
   const [reloadKey, setReloadKey] = useState(0);
   const [symbols, setSymbols] = useState({});
   const [view, setView] = useState("art");
+  const [framingCardId, setFramingCardId] = useState(null);
+  const [adjustingFraming, setAdjustingFraming] = useState(false);
+  const [framingSummary, setFramingSummary] = useState(null);
   const [changingLayout, setChangingLayout] = useState(false);
   const [searchingReferences, setSearchingReferences] = useState(false);
   const [autoReferenceSummary, setAutoReferenceSummary] = useState(null);
@@ -58,6 +62,8 @@ export default function DeckDetail() {
     async function loadPage() {
       setLoading(true);
       setInterviewOpen(false);
+      setFramingCardId(null);
+      setFramingSummary(null);
       setPanelError("");
       setAutoReferenceSummary(null);
       setError("");
@@ -103,7 +109,7 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -453,6 +459,67 @@ export default function DeckDetail() {
     }
   }
 
+  async function saveFraming(cardId, { offset, zoom }) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const response = await api.patch(`/cards/${cardId}/framing/`, {
+        offset_y: offset,
+        zoom,
+      });
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      setFramingSummary(null);
+      return response.data;
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
+  async function autoFraming(cardId) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const response = await api.post(`/cards/${cardId}/framing/auto/`);
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      setFramingSummary(null);
+      return response.data;
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
+  async function autoFrameDeck() {
+    if (busy || panelRequest.current) {
+      return;
+    }
+    panelRequest.current = true;
+    setAdjustingFraming(true);
+    setFramingSummary(null);
+    setError("");
+    try {
+      const response = await api.post(`/decks/${id}/framing/auto/`);
+      replacePanelDeck(response.data);
+      setFramingSummary(response.data.framing_summary);
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "No se pudieron ajustar los encuadres.");
+      if (requestError.response?.status === 409) {
+        try {
+          const loadedDeck = await loadDeck();
+          setJob(loadedDeck.active_job);
+        } catch {
+          setNotice("No se pudo recuperar el proceso activo.");
+        }
+      }
+    } finally {
+      panelRequest.current = false;
+      setAdjustingFraming(false);
+    }
+  }
+
   const sections = useMemo(() => {
     if (!deck) {
       return [];
@@ -496,6 +563,7 @@ export default function DeckDetail() {
     card.theme_assignment?.needs_reference &&
     ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
   ));
+  const framingCard = deck.cards.find((card) => card.id === framingCardId);
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || job?.failed_cards > 0;
 
   return (
@@ -645,6 +713,23 @@ export default function DeckDetail() {
               : estimate.to_generate === 0 ? "Todo generado" : `Generar siguientes ${estimate.batch_size}`}
           </button>
         </div>
+        {(deck.card_layout || "borderless") === "borderless" && (
+          <div className="deck-framing-panel">
+            <button type="button" className="secondary-button" disabled={busy} onClick={autoFrameDeck}>
+              Auto-encuadrar mazo
+            </button>
+            {adjustingFraming && (
+              <div className="planning-status" role="status">
+                <span className="spinner" />
+                Ajustando encuadres…
+              </div>
+            )}
+            {framingSummary && (
+              <p role="status">Ajustadas: {framingSummary.adjusted} · Sin cambios: {framingSummary.unchanged} · Sin rostro: {framingSummary.no_face}</p>
+            )}
+            <p>No modifica las cartas que ajustaste a mano.</p>
+          </div>
+        )}
         <p className="estimate">
           Esta tanda: <strong>{estimate.batch_size}</strong> cartas <i>·</i>{" "}
           <strong>USD {estimate.batch_cost_usd.toFixed(2)}</strong>
@@ -711,19 +796,43 @@ export default function DeckDetail() {
                     disabled={busy}
                   />
                 ) : (
-                  <ProxyCard
-                    key={card.id}
-                    deckCard={card}
-                    symbols={symbols}
-                    layout={deck.card_layout || "borderless"}
-                    nameMode="themed"
-                  />
+                  <div className="framing-card-wrap" key={card.id}>
+                    <ProxyCard
+                      deckCard={card}
+                      symbols={symbols}
+                      layout={deck.card_layout || "borderless"}
+                      nameMode="themed"
+                    />
+                    {(deck.card_layout || "borderless") === "borderless" && card.generated_image?.image_url && (
+                      <button
+                        type="button"
+                        className="framing-card-button secondary-button"
+                        disabled={busy}
+                        onClick={() => setFramingCardId(card.id)}
+                        aria-label={`Encuadre de ${card.card?.name || card.raw_name}`}
+                      >
+                        Encuadre
+                      </button>
+                    )}
+                  </div>
                 )
               ))}
             </div>
           </section>
         ))}
       </div>
+      {view === "card" && (deck.card_layout || "borderless") === "borderless" && framingCard?.generated_image?.image_url && (
+        <FramingEditor
+          key={framingCard.id}
+          deckCard={framingCard}
+          symbols={symbols}
+          layout="borderless"
+          busy={busy}
+          onSave={(framing) => saveFraming(framingCard.id, framing)}
+          onAuto={() => autoFraming(framingCard.id)}
+          onClose={() => setFramingCardId(null)}
+        />
+      )}
     </section>
   );
 }
