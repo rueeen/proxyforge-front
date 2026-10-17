@@ -366,6 +366,41 @@ export default function DeckDetail() {
     }
   }
 
+  async function addReference(cardId, { file, url }) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      let body;
+      if (file) {
+        body = new FormData();
+        body.append("file", file);
+      } else {
+        body = { url };
+      }
+      const response = await api.post(`/cards/${cardId}/theme-assignment/references/`, body);
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      await loadEstimate();
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
+  async function removeReference(cardId, referenceId) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const response = await api.delete(`/cards/${cardId}/theme-assignment/references/${referenceId}/`);
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      await loadEstimate();
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
   const sections = useMemo(() => {
     if (!deck) {
       return [];
@@ -574,6 +609,8 @@ export default function DeckDetail() {
                     layout={deck.card_layout || "borderless"}
                     onRegenerate={regenerateCard}
                     onSaveAssignment={saveAssignment}
+                    onAddReference={addReference}
+                    onRemoveReference={removeReference}
                     disabled={busy}
                   />
                 ) : (
