@@ -34,6 +34,8 @@ export default function DeckDetail() {
   const [searchingReferences, setSearchingReferences] = useState(false);
   const [autoReferenceSummary, setAutoReferenceSummary] = useState(null);
   const [planning, setPlanning] = useState(false);
+  const [rewritingTexts, setRewritingTexts] = useState(false);
+  const [rewriteSummary, setRewriteSummary] = useState(null);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [preparingQuestions, setPreparingQuestions] = useState(false);
   const [savingAnswers, setSavingAnswers] = useState(false);
@@ -64,6 +66,7 @@ export default function DeckDetail() {
       setInterviewOpen(false);
       setFramingCardId(null);
       setFramingSummary(null);
+      setRewriteSummary(null);
       setPanelError("");
       setAutoReferenceSummary(null);
       setError("");
@@ -109,7 +112,7 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -459,6 +462,29 @@ export default function DeckDetail() {
     }
   }
 
+  async function rewriteTexts() {
+    if (busy || panelRequest.current) {
+      return;
+    }
+    if (!window.confirm("Se reescribirán el nombre temático y el flavor de las cartas ya generadas, en el idioma configurado. El arte no cambia ni se regenera.")) {
+      return;
+    }
+    panelRequest.current = true;
+    setRewritingTexts(true);
+    setRewriteSummary(null);
+    setPanelError("");
+    try {
+      const response = await api.post(`/decks/${id}/rewrite-texts/`);
+      replacePanelDeck(response.data);
+      setRewriteSummary(response.data.rewrite_summary);
+    } catch (requestError) {
+      await handlePanelError(requestError, "No se pudieron reescribir los textos.");
+    } finally {
+      panelRequest.current = false;
+      setRewritingTexts(false);
+    }
+  }
+
   async function saveFraming(cardId, { offset, zoom }) {
     setEditingAssignments((count) => count + 1);
     try {
@@ -694,6 +720,22 @@ export default function DeckDetail() {
                 ? "Preparando preguntas según tu mazo…"
                 : savingAnswers ? "Guardando respuestas…"
                   : planningWithAnswers ? "Planificando cartas según tus respuestas…" : "Planificando cartas según el tema…"}
+            </div>
+          )}
+          {deck.cards.some((card) => card.generated_image) && (
+            <div className="rewrite-texts-panel">
+              <button type="button" className="secondary-button" disabled={busy} onClick={rewriteTexts}>
+                Reescribir nombres y flavor
+              </button>
+              {rewritingTexts && (
+                <div className="planning-status" role="status">
+                  <span className="spinner" />
+                  Reescribiendo textos…
+                </div>
+              )}
+              {rewriteSummary && (
+                <p role="status">Actualizadas: {rewriteSummary.updated} · Sin cambios: {rewriteSummary.skipped}</p>
+              )}
             </div>
           )}
           {panelError && <div className="error-panel generation-error" role="alert">{panelError}</div>}

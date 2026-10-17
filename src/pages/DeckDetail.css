@@ -142,3 +142,11 @@
     display: none;
   }
 }
+
+.rewrite-texts-panel {
+  margin-top: 18px;
+}
+
+.rewrite-texts-panel p {
+  margin: 12px 0 0;
+}

@@ -188,3 +188,26 @@
   margin: 12px 0;
   color: var(--text);
 }
+
+.card-info .wiki-search-result {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+
+.card-info .wiki-disabled-reason {
+  color: var(--text-muted);
+}
+
+.card-info .wiki-search-result.reference-status-found {
+  color: #91d7af;
+}
+
+.card-info .wiki-search-result.reference-status-warning {
+  color: #e8bf7a;
+}
+
+.card-info .wiki-search-result.reference-status-error {
+  color: #ffaaaa;
+}
