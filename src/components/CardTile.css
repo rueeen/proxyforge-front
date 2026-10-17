@@ -21,3 +21,88 @@
 .card-image-wrap.card-image-borderless {
   aspect-ratio: 3 / 4;
 }
+
+.reference-thumbnails {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 1.5mm;
+  margin-top: 10px;
+}
+
+.reference-thumbnail {
+  position: relative;
+  flex: none;
+  width: 12mm;
+  height: 12mm;
+}
+
+.reference-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 1.5mm;
+  overflow: hidden;
+  background: var(--surface-raised);
+  cursor: zoom-in;
+}
+
+.reference-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reference-remove {
+  position: absolute;
+  top: -.6mm;
+  right: -.6mm;
+  display: grid;
+  place-items: center;
+  width: 4mm;
+  height: 4mm;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .75);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reference-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.reference-section h4 {
+  margin: 0;
+  font-size: .8rem;
+}
+
+.reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reference-actions button {
+  padding: 7px 10px;
+  font-size: .78rem;
+}
+
+.card-overlay .reference-generation-hint {
+  flex-basis: 100%;
+  color: #eee;
+  font-size: .7rem;
+  text-align: center;
+}
+
+.card-overlay {
+  flex-wrap: wrap;
+}
