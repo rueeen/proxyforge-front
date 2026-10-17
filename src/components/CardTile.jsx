@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import "./CardTile.css";
 
-export default function CardTile({ deckCard, onRegenerate, onSaveAssignment, disabled = false }) {
+export default function CardTile({
+  deckCard,
+  onRegenerate,
+  onSaveAssignment,
+  disabled = false,
+  layout = "borderless",
+}) {
   const [modalOpen, setModalOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState("");
@@ -78,7 +84,7 @@ export default function CardTile({ deckCard, onRegenerate, onSaveAssignment, dis
 
   return (
     <article className={`card-tile ${deckCard.resolution_error ? "card-tile-error" : ""}`}>
-      <div className="card-image-wrap">
+      <div className={`card-image-wrap ${layout === "borderless" ? "card-image-borderless" : ""}`}>
         {generatedUrl ? (
           <button
             type="button"

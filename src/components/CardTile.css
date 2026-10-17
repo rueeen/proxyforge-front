@@ -17,3 +17,7 @@
 .assignment-form textarea { resize: vertical; }
 .assignment-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .assignment-actions button { padding: 7px 10px; font-size: .78rem; }
+
+.card-image-wrap.card-image-borderless {
+  aspect-ratio: 3 / 4;
+}

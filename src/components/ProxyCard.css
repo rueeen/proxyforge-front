@@ -3,53 +3,457 @@
   height: 88mm;
   flex: none;
   box-sizing: border-box;
-  border: 1.2mm solid var(--frame-border);
   border-radius: 3mm;
-  padding: 1.5mm;
-  display: grid;
-  grid-template-rows: 7mm 42mm 5.5mm minmax(0, 1fr) 2mm;
-  background: var(--frame-background);
-  color: #181512;
+  color: var(--rules-text);
   overflow: hidden;
   font-family: "Crimson Text", Georgia, serif;
   line-height: 1.1;
+  color-scheme: light;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
+
 .proxy-title-bar {
   display: flex;
   align-items: center;
   gap: 1mm;
   padding: .6mm 1mm;
   min-width: 0;
-  border-radius: 1mm 1mm 0 0;
-  background: var(--frame-accent);
-  background: color-mix(in srgb, var(--frame-accent) 82%, transparent);
+  color: var(--title-text);
 }
+
 .proxy-title-bar h3 {
   flex: 1;
   min-width: 0;
   margin: 0;
   font-family: "Cinzel", Georgia, serif;
   font-size: 9pt;
-  font-weight: 600;
+  font-weight: 700;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
 }
-.proxy-mana-cost { flex: none; font-size: 8pt; white-space: nowrap; }
-.proxy-card .mana-symbol { display: inline-block; width: auto; height: 1em; vertical-align: -.12em; }
-.proxy-art { position: relative; min-height: 0; overflow: hidden; background: #d2cbbd; }
-.proxy-art-image { display: block; width: 100%; height: 100%; object-fit: cover; }
-.proxy-art-placeholder { height: 100%; display: grid; place-content: center; text-align: center; padding: 3mm; color: #47433b; font-size: 11pt; }
-.proxy-alternate-name { position: absolute; inset: 0 0 auto; padding: .8mm 1mm; font-size: 6.5pt; background: #fff9; color: #181512; }
-.proxy-original-art { position: absolute; bottom: .5mm; left: .5mm; padding: .3mm .6mm; background: #fffc; color: #181512; font-size: 5.5pt; }
-.proxy-type-bar { display: flex; align-items: center; padding: .5mm 1mm; font: 600 7pt "Cinzel", Georgia, serif; background: var(--frame-accent); overflow: hidden; }
-.proxy-text-box { position: relative; min-height: 0; padding: 1mm; background: var(--frame-text-box); color: #181512; }
-.proxy-text-with-stats { padding-bottom: 4mm; }
-.proxy-rules { height: 100%; overflow: hidden; font-size: 8.5pt; line-height: 1.08; }
-.proxy-rules p { margin: 0 0 .6mm; }
-.proxy-rules p:last-child { margin-bottom: 0; }
-.proxy-flavor { padding-top: .6mm; border-top: .15mm solid #7777; }
-.proxy-stats { position: absolute; right: .7mm; bottom: .3mm; min-width: 7mm; padding: .3mm 1mm; border: .2mm solid var(--frame-border); border-radius: 1mm; background: var(--frame-accent); text-align: center; font-size: 8pt; font-weight: 600; }
-.proxy-loyalty { clip-path: polygon(0 0, 100% 0, 90% 75%, 50% 100%, 10% 75%); padding-bottom: 1mm; border-radius: 0; }
-.proxy-footer { display: flex; align-items: end; justify-content: space-between; gap: .5mm; min-width: 0; font: 4pt system-ui, sans-serif; white-space: nowrap; }
+
+.proxy-mana-cost {
+  flex: none;
+  font-size: 8pt;
+  white-space: nowrap;
+}
+
+.proxy-card .mana-symbol {
+  display: inline-block;
+  width: auto;
+  height: 1em;
+  vertical-align: -.12em;
+}
+
+.proxy-art-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.proxy-art-placeholder {
+  height: 100%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 3mm;
+  color: var(--footer-text);
+  font-size: 11pt;
+}
+
+.proxy-alternate-name {
+  position: absolute;
+  padding: .8mm 1mm;
+  font-size: 6.5pt;
+  font-style: italic;
+  text-transform: none;
+}
+
+.proxy-original-art {
+  padding: .3mm .6mm;
+  background: #fffc;
+  color: #141414;
+  font-size: 5.5pt;
+}
+
+.proxy-type-bar {
+  display: flex;
+  align-items: center;
+  padding: .5mm 1mm;
+  font: 600 7pt "Cinzel", Georgia, serif;
+  color: var(--type-text);
+  overflow: hidden;
+}
+
+.proxy-text-box {
+  position: relative;
+  min-height: 0;
+  padding: 1mm;
+  color: var(--rules-text);
+}
+
+.proxy-rules {
+  height: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 8.5pt;
+  line-height: 1.08;
+}
+
+.proxy-rules p {
+  margin: 0 0 .6mm;
+}
+
+.proxy-rules p:last-child {
+  margin-bottom: 0;
+}
+
+.proxy-flavor {
+  padding-top: .6mm;
+  border-top: .15mm solid var(--frame-accent);
+}
+
+.proxy-stats {
+  position: absolute;
+  text-align: center;
+  color: var(--stats-text);
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+.proxy-loyalty {
+  clip-path: polygon(0 0, 100% 0, 90% 75%, 50% 100%, 10% 75%);
+}
+
+.proxy-footer {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: .5mm;
+  min-width: 0;
+  font: 4pt system-ui, sans-serif;
+  white-space: nowrap;
+  color: var(--footer-text);
+}
+
+/* The original framed layout remains available. */
+.proxy-card.classic {
+  display: grid;
+  grid-template-rows: 7mm 42mm 5.5mm minmax(0, 1fr) 2mm;
+  border: 1.2mm solid var(--frame-border);
+  padding: 1.5mm;
+  background: var(--frame-background);
+}
+
+.classic .proxy-title-bar {
+  border-radius: 1mm 1mm 0 0;
+  background: var(--frame-accent);
+}
+
+.classic .proxy-art {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--frame-background);
+}
+
+.classic .proxy-alternate-name {
+  inset: 0 0 auto;
+  background: var(--frame-text-box);
+  color: var(--rules-text);
+}
+
+.classic .proxy-original-art {
+  position: absolute;
+  bottom: .5mm;
+  left: .5mm;
+}
+
+.classic .proxy-type-bar {
+  background: var(--frame-accent);
+}
+
+.classic .proxy-text-box {
+  background: var(--frame-text-box);
+}
+
+.classic .proxy-text-with-stats {
+  padding-bottom: 4mm;
+}
+
+.classic .proxy-stats {
+  right: .7mm;
+  bottom: .3mm;
+  min-width: 7mm;
+  padding: .3mm 1mm;
+  border: .2mm solid var(--frame-border);
+  border-radius: 1mm;
+  background: var(--frame-accent);
+}
+
+.classic .proxy-loyalty {
+  padding-bottom: 1mm;
+  border-radius: 0;
+}
+
+/* Showcase layout: art and vignette sit behind the floating plates. */
+.proxy-card.borderless {
+  position: relative;
+  isolation: isolate;
+  border: 1mm solid #0d0d0d;
+  border-radius: 3.2mm;
+  background: var(--frame-background);
+  --plate-shadow: inset 0 .25mm 0 #ffffff73, inset 0 -.3mm 0 #0004, 0 .6mm 1.6mm #0007;
+}
+
+.borderless > .proxy-art-image {
+  position: absolute;
+  inset: 0;
+  object-position: center 30%;
+  z-index: -2;
+}
+
+.borderless::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, #0000008c 0%, transparent 14%, transparent 55%, #0008 100%);
+}
+
+.borderless .proxy-title-bar,
+.borderless .proxy-type-bar {
+  box-sizing: border-box;
+  border: .45mm solid var(--frame-accent);
+  border-radius: 3.3mm;
+  background: linear-gradient(180deg, var(--plate-top), var(--plate-bottom));
+  box-shadow: var(--plate-shadow);
+  backdrop-filter: blur(1.5px);
+}
+
+.borderless .proxy-title-bar {
+  position: absolute;
+  top: 2.4mm;
+  left: 2.6mm;
+  right: 2.6mm;
+  height: 6.6mm;
+  padding: .4mm 1.4mm;
+}
+
+.borderless .proxy-title-bar h3 {
+  font-size: 8.5pt;
+  letter-spacing: .03em;
+  text-shadow: 0 .15mm .3mm var(--title-shadow);
+}
+
+.borderless .proxy-mana-cost {
+  display: flex;
+  align-items: center;
+  gap: .3mm;
+  font-size: 7pt;
+  filter: drop-shadow(0 .3mm .35mm #0009);
+}
+
+.borderless .proxy-mana-cost .mana-symbol {
+  height: 3.5mm;
+}
+
+.borderless .proxy-alternate-name {
+  top: 9.8mm;
+  left: 4mm;
+  max-width: calc(100% - 8mm);
+  padding: .3mm 1.2mm;
+  border-radius: 1mm;
+  background: #00000073;
+  color: #f4efe6;
+  font-size: 6pt;
+  overflow-wrap: anywhere;
+}
+
+.borderless .proxy-art-placeholder {
+  position: absolute;
+  inset: 0;
+  padding-bottom: 25mm;
+}
+
+.proxy-art-labels {
+  position: absolute;
+  left: 3mm;
+  right: 3mm;
+  top: 15mm;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5mm;
+}
+
+.proxy-landscape-notice {
+  padding: .4mm .8mm;
+  border-radius: .7mm;
+  background: #0009;
+  color: #fff;
+  font: 4.8pt system-ui, sans-serif;
+}
+
+.proxy-bottom-block {
+  position: absolute;
+  left: 2.6mm;
+  right: 2.6mm;
+  bottom: 4.2mm;
+}
+
+.borderless .proxy-type-bar {
+  position: relative;
+  z-index: 1;
+  height: 5.4mm;
+  gap: .8mm;
+  border-radius: 2.7mm;
+  padding: .4mm 1.2mm;
+  font-size: 6.5pt;
+}
+
+.borderless .proxy-type-bar > span:first-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.proxy-rarity-gem {
+  flex: none;
+  width: 2.8mm;
+  height: 2.8mm;
+  border: .3mm solid var(--frame-accent);
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--gem-from), var(--gem-to));
+  box-shadow: inset 0 .3mm .4mm #fffc, inset 0 -.3mm .4mm #0006;
+}
+
+.borderless .proxy-text-box {
+  margin-top: -.8mm;
+  padding: 1.8mm 1.5mm 1.2mm;
+  border: .35mm solid var(--rules-border);
+  border-top: none;
+  border-radius: 0 0 2mm 2mm;
+  background: var(--rules-background);
+  backdrop-filter: blur(2.5px);
+}
+
+.borderless .proxy-text-with-stats {
+  padding-bottom: 2.6mm;
+}
+
+.borderless .proxy-rules {
+  height: auto;
+  max-height: 24mm;
+}
+
+.borderless .proxy-flavor {
+  position: relative;
+  padding-top: .85mm;
+  border: 0;
+}
+
+.borderless .proxy-flavor::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: .25mm;
+  background: linear-gradient(90deg, transparent, var(--frame-accent), transparent);
+}
+
+.borderless .proxy-stats {
+  right: 1.2mm;
+  bottom: -1.2mm;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 10.5mm;
+  height: 5.6mm;
+  border: .4mm solid #ffffff8c;
+  border-radius: 1.4mm;
+  background: linear-gradient(160deg, var(--frame-accent), var(--frame-border));
+  box-shadow: var(--plate-shadow);
+  font: 700 8pt "Cinzel", Georgia, serif;
+}
+
+.borderless .proxy-loyalty {
+  padding-bottom: .6mm;
+}
+
+.borderless .proxy-footer {
+  position: absolute;
+  bottom: 1.1mm;
+  left: 3mm;
+  right: 3mm;
+  color: #f2eee6;
+  font-size: 4.6pt;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  text-shadow: 0 0 .6mm #000, 0 0 .3mm #000;
+}
+
+.borderless::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0) 35%, rgba(255,240,200,.35) 45%, rgba(160,220,255,.30) 52%, rgba(255,180,255,.25) 58%, transparent 70%);
+  background-size: 250% 250%;
+  background-position: 100% 0;
+  mix-blend-mode: color-dodge;
+  opacity: 0;
+  transition: opacity .25s;
+}
+
+.borderless:hover::after {
+  opacity: 1;
+  animation: proxy-foil-sweep 1.2s both;
+}
+
+.borderless.proxy-foil::after {
+  opacity: .35;
+  animation: proxy-foil-sweep 6s ease-in-out infinite alternate;
+}
+
+.borderless.proxy-foil:hover::after {
+  opacity: 1;
+  animation: proxy-foil-sweep 1.2s both;
+}
+
+@keyframes proxy-foil-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .borderless::after,
+  .borderless:hover::after,
+  .borderless.proxy-foil::after,
+  .borderless.proxy-foil:hover::after {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media print {
+  .borderless::after,
+  .proxy-landscape-notice {
+    display: none;
+  }
+
+  .borderless .proxy-title-bar,
+  .borderless .proxy-type-bar {
+    background: var(--plate-print);
+    backdrop-filter: none;
+  }
+
+  .borderless .proxy-text-box {
+    background: var(--rules-print);
+    backdrop-filter: none;
+  }
+}
