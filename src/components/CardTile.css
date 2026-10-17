@@ -211,3 +211,33 @@
 .card-info .wiki-search-result.reference-status-error {
   color: #ffaaaa;
 }
+
+.reference-paste-zone {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: .78rem;
+}
+
+.reference-paste-zone:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.reference-paste-zone.reference-paste-dragover {
+  border-color: var(--accent);
+  background: rgba(124, 92, 255, .1);
+}
+
+.reference-paste-zone[aria-disabled="true"] {
+  opacity: .55;
+}
+
+.reference-wiki-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: #b9abff;
+  font-size: .75rem;
+}

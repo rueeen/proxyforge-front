@@ -707,8 +707,12 @@ export default function DeckDetail() {
               {autoReferenceSummary && (
                 <p className="auto-reference-summary" role="status">
                   Encontradas: {autoReferenceSummary.found} · No encontradas: {autoReferenceSummary.not_found} · {" "}
-                  Descartadas: {autoReferenceSummary.rejected} · Errores: {autoReferenceSummary.error}
+                  Descartadas: {autoReferenceSummary.rejected} · Errores: {autoReferenceSummary.error} · {" "}
+                  Bloqueadas: {autoReferenceSummary.blocked ?? 0}
                 </p>
+              )}
+              {autoReferenceSummary?.blocked > 0 && (
+                <p>Las wikis de Fandom bloquean descargas automáticas. En esas cartas, abre la wiki desde el enlace y pega la imagen con Ctrl+V.</p>
               )}
               <p>Si no buscas antes, las referencias se buscan solas al generar cada tanda.</p>
             </div>
