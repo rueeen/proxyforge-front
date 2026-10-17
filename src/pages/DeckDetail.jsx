@@ -12,6 +12,32 @@ import "./DeckDetail.css";
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
 const sectionNames = { commander: "Comandante", main: "Mazo principal", sideboard: "Sideboard" };
 
+function referenceSummaryText(summary) {
+  return `Encontradas: ${summary.found ?? 0} · No encontradas: ${summary.not_found ?? 0} · Descartadas: ${summary.rejected ?? 0} · Bloqueadas: ${summary.blocked ?? 0} · Errores: ${summary.error ?? 0}`;
+}
+
+function jobNotice(job) {
+  const kind = job.kind || "images";
+  if (job.status === "failed") {
+    return job.error_message || (kind === "plan" ? "No se pudo crear el plan." : kind === "references" ? "No se pudieron buscar las referencias." : "La generación falló.");
+  }
+  if (job.status === "cancelled") {
+    if (kind === "images" && job.failed_cards > 0) {
+      return `${job.failed_cards} cartas fallaron, puedes regenerarlas individualmente.`;
+    }
+    return kind === "plan" ? "Planificación cancelada." : kind === "references" ? "Búsqueda de referencias cancelada." : "Generación cancelada.";
+  }
+  if (kind === "plan") {
+    return "Plan temático listo.";
+  }
+  if (kind === "references") {
+    return job.summary ? referenceSummaryText(job.summary) : "Búsqueda de referencias completada.";
+  }
+  return job.failed_cards > 0
+    ? `${job.failed_cards} cartas fallaron, puedes regenerarlas individualmente.`
+    : "Generación completada.";
+}
+
 export default function DeckDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -44,7 +70,6 @@ export default function DeckDetail() {
   const [questionsFailed, setQuestionsFailed] = useState(false);
   const [panelError, setPanelError] = useState("");
   const [questionsVersion, setQuestionsVersion] = useState(0);
-  const [planningWithAnswers, setPlanningWithAnswers] = useState(false);
   const [editingAssignments, setEditingAssignments] = useState(0);
   const [regeneratingCards, setRegeneratingCards] = useState(0);
 
@@ -114,6 +139,10 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
+  const jobKind = job?.kind || "images";
+  const planActive = active && jobKind === "plan";
+  const referencesActive = active && jobKind === "references";
+  const imagesActive = active && jobKind === "images";
   const busy = updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
@@ -140,14 +169,9 @@ export default function DeckDetail() {
         if (terminal) {
           finished = true;
           clearInterval(interval);
-          if (nextJob.status === "failed") {
-            setNotice(nextJob.error_message || "La generación falló.");
-          } else if (nextJob.failed_cards > 0) {
-            setNotice(`${nextJob.failed_cards} cartas fallaron, puedes regenerarlas individualmente.`);
-          } else if (nextJob.status === "cancelled") {
-            setNotice("Generación cancelada.");
-          } else {
-            setNotice("Generación completada.");
+          setNotice(jobNotice(nextJob));
+          if (nextJob.kind === "references") {
+            setAutoReferenceSummary(nextJob.summary || null);
           }
           try {
             await Promise.all([
@@ -164,7 +188,7 @@ export default function DeckDetail() {
         }
       } catch (requestError) {
         if (!controller.signal.aborted) {
-          setError(requestError.response?.data?.detail || "No se pudo actualizar la generación.");
+          setError(requestError.response?.data?.detail || "No se pudo actualizar el proceso.");
         }
       } finally {
         polling = false;
@@ -184,7 +208,7 @@ export default function DeckDetail() {
     setNotice("");
     try {
       const response = await api.post(`/decks/${id}/generate/`, {});
-      setJob(response.data);
+      acceptJob(response.data);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "No se pudo iniciar la generación.");
       if (requestError.response?.status === 409) {
@@ -262,12 +286,18 @@ export default function DeckDetail() {
     }
   }
 
+  function acceptJob(nextJob) {
+    setJob(nextJob);
+    setNotice("");
+    setError("");
+    setAutoReferenceSummary(null);
+  }
+
   async function requestThemePlan() {
     const response = await api.post(`/decks/${id}/theme-plan/`, {
       overwrite_edited: false,
     });
-    replacePanelDeck(response.data);
-    await loadEstimate();
+    acceptJob(response.data);
   }
 
   async function createThemePlan({ confirm = true } = {}) {
@@ -337,7 +367,6 @@ export default function DeckDetail() {
       replacePanelDeck(response.data);
       if (plan) {
         setSavingAnswers(false);
-        setPlanningWithAnswers(true);
         setPlanning(true);
         await requestThemePlan();
       }
@@ -348,7 +377,6 @@ export default function DeckDetail() {
       panelRequest.current = false;
       setSavingAnswers(false);
       setPlanning(false);
-      setPlanningWithAnswers(false);
     }
   }
 
@@ -465,9 +493,7 @@ export default function DeckDetail() {
     try {
       const body = force ? { force: true, deck_card_ids: failedIds } : { force: false };
       const response = await api.post(`/decks/${id}/auto-references/`, body);
-      replacePanelDeck(response.data);
-      setAutoReferenceSummary(response.data.auto_reference_summary);
-      await loadEstimate();
+      acceptJob(response.data);
     } catch (requestError) {
       await handlePanelError(requestError, "No se pudieron buscar las referencias automáticas.");
     } finally {
@@ -668,7 +694,7 @@ export default function DeckDetail() {
     ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
   ));
   const framingCard = deck.cards.find((card) => card.id === framingCardId);
-  const warning = jobStatus === "failed" || jobStatus === "cancelled" || job?.failed_cards > 0;
+  const warning = jobStatus === "failed" || jobStatus === "cancelled" || (jobKind === "images" && job?.failed_cards > 0);
 
   return (
     <section className="detail-page">
@@ -739,7 +765,7 @@ export default function DeckDetail() {
             </>
           ) : (
             <>
-              {deck.theme_plan_stale ? (
+              {planActive ? null : deck.theme_plan_stale ? (
                 <p className="theme-plan-warning" role="status">Cambiaste tus respuestas después del último plan.</p>
               ) : <p>Plan temático listo.</p>}
               <div className="theme-plan-actions">
@@ -747,6 +773,13 @@ export default function DeckDetail() {
                 <button type="button" className="theme-plan-link" disabled={busy} onClick={openInterview}>Editar respuestas</button>
               </div>
             </>
+          )}
+          {planActive && (
+            <div className="plan-job-progress" aria-label="Progreso del plan">
+              <p role="status">{job.stage || "Planificando cartas…"}</p>
+              <ProgressBar completed={job.completed_cards} total={job.total_cards} />
+              <p>Puedes seguir mirando el mazo; se actualizará al terminar.</p>
+            </div>
           )}
           {!interviewOpen && Boolean(deck.theme_brief?.length) && (
             <ul className="theme-brief" aria-label="Resumen de respuestas">
@@ -760,13 +793,13 @@ export default function DeckDetail() {
               })}
             </ul>
           )}
-          {deck.has_theme_plan && deck.auto_reference_counts?.needed > 0 && (
+          {((deck.has_theme_plan && deck.auto_reference_counts?.needed > 0) || referencesActive || (jobKind === "references" && autoReferenceSummary)) && (
             <div className="auto-reference-panel">
               <p>
-                <strong>{deck.auto_reference_counts.needed}</strong> cartas con personajes u objetos icónicos · {" "}
-                <strong>{deck.auto_reference_counts.with_reference}</strong> con referencia
+                <strong>{deck.auto_reference_counts?.needed ?? 0}</strong> cartas con personajes u objetos icónicos · {" "}
+                <strong>{deck.auto_reference_counts?.with_reference ?? 0}</strong> con referencia
               </p>
-              {deck.auto_reference_counts.pending > 0 ? (
+              {deck.auto_reference_counts?.pending > 0 ? (
                 <button
                   type="button"
                   className="secondary-button"
@@ -786,17 +819,15 @@ export default function DeckDetail() {
                 </button>
               )}
               {!canSearchReferences() && <p>Confirma primero la wiki del mazo</p>}
-              {searchingReferences && (
-                <div className="planning-status" role="status">
-                  <span className="spinner" />
-                  Buscando imágenes en la wiki… (puede tardar un poco)
+              {referencesActive && (
+                <div className="reference-job-progress" aria-label="Progreso de referencias">
+                  <p role="status">{job.stage || "Buscando imágenes en la wiki…"}</p>
+                  <ProgressBar completed={job.completed_cards} total={job.total_cards} />
                 </div>
               )}
               {autoReferenceSummary && (
                 <p className="auto-reference-summary" role="status">
-                  Encontradas: {autoReferenceSummary.found} · No encontradas: {autoReferenceSummary.not_found} · {" "}
-                  Descartadas: {autoReferenceSummary.rejected} · Errores: {autoReferenceSummary.error} · {" "}
-                  Bloqueadas: {autoReferenceSummary.blocked ?? 0}
+                  {referenceSummaryText(autoReferenceSummary)}
                 </p>
               )}
               {autoReferenceSummary?.blocked > 0 && (
@@ -805,13 +836,10 @@ export default function DeckDetail() {
               <p>Si no buscas antes, las referencias se buscan solas al generar cada tanda.</p>
             </div>
           )}
-          {(planning || preparingQuestions || savingAnswers) && (
+          {(preparingQuestions || savingAnswers) && (
             <div className="planning-status" role="status">
               <span className="spinner" />
-              {preparingQuestions
-                ? "Preparando preguntas según tu mazo…"
-                : savingAnswers ? "Guardando respuestas…"
-                  : planningWithAnswers ? "Planificando cartas según tus respuestas…" : "Planificando cartas según el tema…"}
+              {preparingQuestions ? "Preparando preguntas según tu mazo…" : "Guardando respuestas…"}
             </div>
           )}
           {deck.cards.some((card) => card.generated_image) && (
@@ -842,7 +870,7 @@ export default function DeckDetail() {
             onClick={generateArt}
             disabled={busy || interviewOpen || estimate.to_generate === 0}
           >
-            {active || generating
+            {imagesActive || generating
               ? "Generando…"
               : estimate.to_generate === 0 ? "Todo generado" : `Generar siguientes ${estimate.batch_size}`}
           </button>
@@ -870,14 +898,17 @@ export default function DeckDetail() {
           {estimate.reference_cost_usd > 0 && <span> (incluye USD {estimate.reference_cost_usd.toFixed(2)} en referencias)</span>}
         </p>
         <p className="full-deck-estimate">Mazo completo: USD {estimate.estimated_cost_usd.toFixed(2)}</p>
-        {active && (
-          <ProgressBar
-            completed={job.completed_cards}
-            total={job.total_cards}
-            failed={job.failed_cards}
-          />
+        {imagesActive && (
+          <div className="image-job-progress" aria-label="Progreso de imágenes">
+            <ProgressBar
+              completed={job.completed_cards}
+              total={job.total_cards}
+              failed={job.failed_cards}
+            />
+            {job.stage && <p role="status">{job.stage}</p>}
+          </div>
         )}
-        {notice && (
+        {notice && !(jobKind === "references" && jobStatus === "done" && autoReferenceSummary) && (
           <div className={warning ? "generation-notice warning" : "generation-notice"}>
             {notice}
           </div>
