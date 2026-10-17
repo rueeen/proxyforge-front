@@ -59,6 +59,7 @@ export default function CardTile({
     blocked: { label: "Descarga bloqueada", tone: "warning" },
   };
   const status = referenceStatuses[referenceStatus] || referenceStatuses[""];
+  const automaticReferences = references.filter((reference) => reference.origin === "auto").length;
   const retryable = ["not_found", "rejected", "error"].includes(referenceStatus);
   const wikiUrlProvided = /^http/i.test(referencePage.trim()) || /^http/i.test(referenceWiki.trim());
   const wikiDisabledReason = !assignment
@@ -88,7 +89,7 @@ export default function CardTile({
   const referenceStatusDisplay = assignment?.needs_reference && (
     <div className="auto-reference-status" aria-live="polite">
       <span className={`reference-status reference-status-${status.tone}`} title={assignment.auto_reference_message || undefined}>
-        {status.label}
+        {referenceStatus === "found" && automaticReferences > 1 ? `Con ${references.length} referencias` : status.label}
       </span>
       {["rejected", "blocked"].includes(referenceStatus) && assignment.auto_reference_message && (
         <small>{assignment.auto_reference_message}</small>
@@ -404,6 +405,26 @@ export default function CardTile({
               </div>
             )}
             {referenceStatusDisplay}
+            {assignment?.reference_page_status === "search" && (
+              <div className="reference-page-status reference-page-search">
+                <span>Página encontrada por búsqueda: {assignment.reference_page}</span>
+                {assignment.reference_page_url && <a href={assignment.reference_page_url} target="_blank" rel="noreferrer">Abrir página ↗</a>}
+              </div>
+            )}
+            {assignment?.reference_page_status === "missing" && (
+              <div className="reference-page-status reference-page-missing">
+                <span>Página no encontrada en la wiki</span>
+                <button
+                  type="button"
+                  className="reference-retry"
+                  disabled={controlsDisabled}
+                  onClick={() => setWikiPicker({ wiki: assignment.reference_wiki || "", page: assignment.reference_page || "" })}
+                >
+                  Elegir imagen de la wiki
+                </button>
+                {!editing && <button type="button" className="reference-retry" disabled={controlsDisabled} onClick={editAssignment}>Editar tema</button>}
+              </div>
+            )}
             {!editing && ["blocked", "not_found"].includes(referenceStatus) && assignment?.reference_page_url && (
               <a className="reference-wiki-link" href={assignment.reference_page_url} target="_blank" rel="noreferrer">
                 Abrir página en la wiki ↗
@@ -460,7 +481,7 @@ export default function CardTile({
               </div>
             )}
             {!editing ? (
-              <button
+              assignment?.reference_page_status !== "missing" && <button
                 type="button"
                 className="assignment-edit-button"
                 onClick={editAssignment}

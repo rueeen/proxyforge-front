@@ -241,3 +241,21 @@
   color: #b9abff;
   font-size: .75rem;
 }
+
+.reference-page-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: .72rem;
+  overflow-wrap: anywhere;
+}
+
+.reference-page-search {
+  color: #e8bf7a;
+}
+
+.reference-page-missing {
+  color: #ffaaaa;
+}
