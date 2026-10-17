@@ -8,6 +8,7 @@ import ThemeQuestions from "../components/ThemeQuestions";
 import FramingEditor from "../components/FramingEditor";
 import WikiPanel from "../components/WikiPanel";
 import "./DeckDetail.css";
+import { canTryHost, fetchImageInBrowser } from "../browserImages";
 
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
 const sectionNames = { commander: "Comandante", main: "Mazo principal", sideboard: "Sideboard" };
@@ -44,12 +45,17 @@ export default function DeckDetail() {
   const location = useLocation();
   const autoInterviewHandled = useRef(null);
   const panelRequest = useRef(false);
+  const browserBatchId = useRef(0);
   const [deck, setDeck] = useState(null);
   const [estimate, setEstimate] = useState(null);
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [changingResolution, setChangingResolution] = useState(false);
+  const [browserProgress, setBrowserProgress] = useState(null);
+  const [browserSummary, setBrowserSummary] = useState(null);
+  const [browserWarnings, setBrowserWarnings] = useState([]);
   const [notice, setNotice] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [symbols, setSymbols] = useState({});
@@ -73,6 +79,10 @@ export default function DeckDetail() {
   const [editingAssignments, setEditingAssignments] = useState(0);
   const [regeneratingCards, setRegeneratingCards] = useState(0);
 
+  useEffect(() => () => {
+    browserBatchId.current += 1;
+  }, [id]);
+
   const loadDeck = useCallback(async (signal) => {
     const response = await api.get(`/decks/${id}/`, { signal });
     setDeck(response.data);
@@ -90,6 +100,10 @@ export default function DeckDetail() {
 
     async function loadPage() {
       setLoading(true);
+      setBrowserProgress(null);
+      setBrowserSummary(null);
+      setBrowserWarnings([]);
+      panelRequest.current = false;
       setInterviewOpen(false);
       setFramingCardId(null);
       setFramingSummary(null);
@@ -143,7 +157,7 @@ export default function DeckDetail() {
   const planActive = active && jobKind === "plan";
   const referencesActive = active && jobKind === "references";
   const imagesActive = active && jobKind === "images";
-  const busy = updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = Boolean(browserProgress) || changingResolution || updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -589,11 +603,150 @@ export default function DeckDetail() {
     }
   }
 
-  async function saveFraming(cardId, { offset, zoom }) {
+  async function changeResolution(imageResolution) {
+    if (busy || panelRequest.current) return;
+    panelRequest.current = true;
+    setChangingResolution(true);
+    setError("");
+    try {
+      const response = await api.patch(`/decks/${id}/`, { image_resolution: imageResolution });
+      replacePanelDeck(response.data);
+      await loadEstimate();
+    } catch (requestError) {
+      await handlePanelError(requestError, "No se pudo cambiar la resolución.");
+    } finally {
+      panelRequest.current = false;
+      setChangingResolution(false);
+    }
+  }
+
+  async function uploadBrowserReferences(cardId, files, urls, mode = "pick") {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const body = new FormData();
+      files.forEach((file, index) => {
+        body.append("files", file);
+        body.append("source_urls", urls[index]);
+      });
+      body.append("mode", mode);
+      const response = await api.post(`/cards/${cardId}/theme-assignment/references/browser/`, body);
+      setDeck((current) => String(current?.id) === String(id)
+        ? { ...current, cards: current.cards.map((card) => card.id === cardId ? response.data : card) }
+        : current);
+      if (mode === "pick") {
+        await Promise.all([loadDeck(), loadEstimate()]);
+        setNotice("Descargada desde tu navegador ✓");
+      }
+      return response.data;
+    } finally {
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
+  async function completeBlockedReferences() {
+    if (busy || panelRequest.current) return;
+    const blockedCards = deck.cards.filter((card) => card.theme_assignment?.auto_reference_status === "blocked");
+    const batchId = ++browserBatchId.current;
+    panelRequest.current = true;
+    setBrowserSummary(null);
+    setBrowserWarnings([]);
+    setError("");
+    const summary = { completed: 0, invalid: 0, unavailable: 0 };
+    const blockedWikis = new Set();
+    const warnedHosts = new Set();
+    try {
+      for (const [index, card] of blockedCards.entries()) {
+        const assignment = card.theme_assignment;
+        const wiki = assignment.reference_wiki || deck.reference_wiki;
+        setBrowserProgress({ current: index + 1, completed: index, total: blockedCards.length, element: assignment.element });
+        if (blockedWikis.has(wiki)) {
+          summary.unavailable += 1;
+          continue;
+        }
+        try {
+          const data = await loadWikiImages(card.id, wiki, assignment.reference_page);
+          if (batchId !== browserBatchId.current) return;
+          const preferred = (image) => !image.maybe_fan_art && Math.max(image.width, image.height) >= 600;
+          const candidates = [...data.images].sort((a, b) => Number(preferred(b)) - Number(preferred(a))).slice(0, (deck.auto_reference_count || 1) + 2);
+          const files = [];
+          const urls = [];
+          let cors = false;
+          let unavailable = false;
+          for (const candidate of candidates) {
+            for (const url of [...new Set([candidate.full_url, candidate.thumb_url])]) {
+              if (!url) continue;
+              if (!canTryHost(url)) {
+                cors = true;
+                unavailable = true;
+                const host = new URL(url).host;
+                if (!warnedHosts.has(host)) {
+                  warnedHosts.add(host);
+                  setBrowserWarnings((current) => [...current, `${host} tampoco permite descargas desde el navegador; usa "Elegir imagen de la wiki" y pega con Ctrl+V en esas cartas.`]);
+                }
+                continue;
+              }
+              try {
+                const file = await fetchImageInBrowser(url);
+                if (batchId !== browserBatchId.current) return;
+                files.push(file);
+                urls.push(candidate.full_url || url);
+                break;
+              } catch (downloadError) {
+                if (batchId !== browserBatchId.current) return;
+                if (!/Formato|10 MB/.test(downloadError.message)) unavailable = true;
+                if (downloadError.message === "cors") {
+                  cors = true;
+                  const host = new URL(url).host;
+                  if (!warnedHosts.has(host)) {
+                    warnedHosts.add(host);
+                    setBrowserWarnings((current) => [...current, `${host} tampoco permite descargas desde el navegador; usa "Elegir imagen de la wiki" y pega con Ctrl+V en esas cartas.`]);
+                  }
+                }
+              }
+            }
+          }
+          if (files.length) {
+            const updated = await uploadBrowserReferences(card.id, files, urls, "auto");
+            if (batchId !== browserBatchId.current) return;
+            if (updated.theme_assignment?.references?.length) summary.completed += 1;
+            else summary.invalid += 1;
+          } else {
+            if (cors) blockedWikis.add(wiki);
+            if (unavailable) summary.unavailable += 1;
+            else summary.invalid += 1;
+          }
+        } catch (requestError) {
+          if (batchId !== browserBatchId.current) return;
+          if (requestError.response?.status === 409) {
+            await handlePanelError(requestError, "Hay un job activo.");
+            throw requestError;
+          }
+          summary.invalid += 1;
+        }
+        setBrowserProgress({ current: index + 1, completed: index + 1, total: blockedCards.length, element: assignment.element });
+      }
+      setBrowserSummary(summary);
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "No se pudieron completar las referencias bloqueadas.");
+    } finally {
+      if (batchId !== browserBatchId.current) return;
+      try {
+        const [loadedDeck] = await Promise.all([loadDeck(), loadEstimate()]);
+        setJob(loadedDeck.active_job);
+      } catch (requestError) {
+        setError(requestError.response?.data?.detail || "No se pudo actualizar el mazo.");
+      }
+      panelRequest.current = false;
+      setBrowserProgress(null);
+    }
+  }
+
+  async function saveFraming(cardId, { offsetX, offsetY, zoom }) {
     setEditingAssignments((count) => count + 1);
     try {
       const response = await api.patch(`/cards/${cardId}/framing/`, {
-        offset_y: offset,
+        offset_x: offsetX,
+        offset_y: offsetY,
         zoom,
       });
       setDeck((current) => ({
@@ -693,6 +846,7 @@ export default function DeckDetail() {
     card.theme_assignment?.needs_reference &&
     ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
   ));
+  const blockedReferenceCards = deck.cards.filter((card) => card.theme_assignment?.auto_reference_status === "blocked");
   const framingCard = deck.cards.find((card) => card.id === framingCardId);
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || (jobKind === "images" && job?.failed_cards > 0);
 
@@ -793,7 +947,7 @@ export default function DeckDetail() {
               })}
             </ul>
           )}
-          {((deck.has_theme_plan && deck.auto_reference_counts?.needed > 0) || referencesActive || (jobKind === "references" && autoReferenceSummary)) && (
+          {((deck.has_theme_plan && deck.auto_reference_counts?.needed > 0) || referencesActive || (jobKind === "references" && autoReferenceSummary) || blockedReferenceCards.length > 0 || browserProgress || browserSummary) && (
             <div className="auto-reference-panel">
               <p>
                 <strong>{deck.auto_reference_counts?.needed ?? 0}</strong> cartas con personajes u objetos icónicos · {" "}
@@ -818,6 +972,19 @@ export default function DeckDetail() {
                   Reintentar fallidas
                 </button>
               )}
+              {blockedReferenceCards.length > 0 && (
+                <button type="button" className="secondary-button" disabled={busy} onClick={completeBlockedReferences}>
+                  Completar bloqueadas desde el navegador ({blockedReferenceCards.length})
+                </button>
+              )}
+              {browserProgress && (
+                <div role="status">
+                  <p>Completando {browserProgress.current} de {browserProgress.total}: {browserProgress.element}</p>
+                  <ProgressBar completed={browserProgress.completed} total={browserProgress.total} />
+                </div>
+              )}
+              {browserSummary && <p role="status">Completadas: {browserSummary.completed} · Sin imágenes válidas: {browserSummary.invalid} · El navegador no pudo descargar: {browserSummary.unavailable}</p>}
+              {browserWarnings.map((warning) => <p key={warning}>{warning}</p>)}
               {!canSearchReferences() && <p>Confirma primero la wiki del mazo</p>}
               {referencesActive && (
                 <div className="reference-job-progress" aria-label="Progreso de referencias">
@@ -874,6 +1041,15 @@ export default function DeckDetail() {
               ? "Generando…"
               : estimate.to_generate === 0 ? "Todo generado" : `Generar siguientes ${estimate.batch_size}`}
           </button>
+        </div>
+        <div className="deck-resolution-control">
+          <label>Resolución
+            <select aria-label="Resolución" value={deck.image_resolution || "1k"} disabled={busy} onChange={(event) => changeResolution(event.target.value)}>
+              <option value="1k">1K</option>
+              <option value="2k">2K</option>
+            </select>
+          </label>
+          <p>2K: más nitidez para imprimir y hacer zoom (~USD 0,02 más por imagen). Afecta solo a las imágenes nuevas o regeneradas.</p>
         </div>
         {(deck.card_layout || "borderless") === "borderless" && (
           <div className="deck-framing-panel">
@@ -961,6 +1137,7 @@ export default function DeckDetail() {
                     onRetryAutoReference={retryAutoReference}
                     onLoadWikiImages={loadWikiImages}
                     onPickWikiImage={pickWikiImage}
+                    onUploadBrowserReferences={uploadBrowserReferences}
                     disabled={busy}
                   />
                 ) : (

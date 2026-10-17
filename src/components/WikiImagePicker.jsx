@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { clipboardImage, referenceImageError } from "../clipboardImages";
 import "./WikiImagePicker.css";
+import { canTryHost, fetchImageInBrowser } from "../browserImages";
 
-export default function WikiImagePicker({ initialWiki, initialPage, loadImages, onPick, onPasteFile, onClose, maxReached }) {
+export default function WikiImagePicker({ initialWiki, initialPage, loadImages, onPick, onPasteFile, onUploadBrowser, onClose, maxReached }) {
   const [wiki, setWiki] = useState(initialWiki || "");
   const [page, setPage] = useState(initialPage || "");
   const [result, setResult] = useState(null);
@@ -12,6 +13,7 @@ export default function WikiImagePicker({ initialWiki, initialPage, loadImages, 
   const [pasting, setPasting] = useState(false);
   const [error, setError] = useState("");
   const [blockedUrl, setBlockedUrl] = useState("");
+  const [downloadStatus, setDownloadStatus] = useState("");
   const dialogRef = useRef(null);
   const pasteRef = useRef(null);
   const requestId = useRef(0);
@@ -91,6 +93,32 @@ export default function WikiImagePicker({ initialWiki, initialPage, loadImages, 
         const data = requestError.response?.data;
         setError(data?.detail || requestError.message || "No se pudo agregar la imagen.");
         if (data?.blocked && data.full_url) {
+          setDownloadStatus("Intentando descargar desde tu navegador…");
+          let downloaded = null;
+          for (const url of [...new Set([data.full_url, image.thumb_url])]) {
+            if (!canTryHost(url)) continue;
+            try {
+              downloaded = await fetchImageInBrowser(url);
+              break;
+            } catch {
+              // Try the thumbnail, then preserve the manual paste workflow.
+            }
+          }
+          if (downloaded) {
+            try {
+              await onUploadBrowser([downloaded], [data.full_url], "pick");
+              if (active.current) {
+                setDownloadStatus("Descargada desde tu navegador ✓");
+                onClose();
+              }
+              return;
+            } catch (uploadError) {
+              if (!active.current) return;
+              setError(uploadError.response?.data?.detail || "No se pudo subir la imagen descargada.");
+            }
+          }
+          if (!active.current) return;
+          setDownloadStatus("");
           setBlockedUrl(data.full_url);
           window.open(data.full_url, "_blank", "noopener");
         }
@@ -181,12 +209,13 @@ export default function WikiImagePicker({ initialWiki, initialPage, loadImages, 
           <button type="submit" className="secondary-button" disabled={busy}>Buscar</button>
         </form>
         {result?.page_url && <a href={result.page_url} target="_blank" rel="noreferrer">Abrir página ↗</a>}
-        {result?.fandom && <p className="wiki-picker-warning">Fandom bloquea descargas automáticas: al elegir una imagen se abrirá en una pestaña nueva; cópiala (clic derecho → Copiar imagen) y pégala aquí con Ctrl+V.</p>}
+        {result?.fandom && <p className="wiki-picker-warning">Fandom puede bloquear las descargas: intentaremos descargarlas desde tu navegador; si no funciona, podrás copiar y pegar la imagen con Ctrl+V.</p>}
         {maxReached && <p role="status">Máximo de 3 referencias alcanzado; quita una para elegir otra.</p>}
         {error && <div className="error-panel" role="alert">{error}</div>}
+        {downloadStatus && <p role="status">{downloadStatus}</p>}
         {blockedUrl && (
           <div className="reference-paste-zone" ref={pasteRef} tabIndex={0} aria-disabled={maxReached || busy}>
-            {pasting ? "Agregando…" : "Pega aquí la imagen copiada (Ctrl+V)"}
+            {pasting ? "Agregando…" : "Tu navegador no pudo descargarla automáticamente. Se abrió en una pestaña: cópiala (clic derecho → Copiar imagen) y pégala aquí con Ctrl+V."}
             <a href={blockedUrl} target="_blank" rel="noreferrer">Abrir imagen ↗</a>
           </div>
         )}

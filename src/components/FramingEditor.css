@@ -9,7 +9,7 @@
 }
 
 .framing-editor {
-  width: min(850px, 100%);
+  width: min(1000px, 100%);
   max-height: calc(100dvh - 40px);
   padding: 20px;
   overflow: auto;
@@ -37,14 +37,14 @@
 
 .framing-preview-space {
   flex: none;
-  width: 100.8mm;
-  height: 140.8mm;
+  width: 113.4mm;
+  height: 158.4mm;
 }
 
 .framing-preview {
   width: 63mm;
   height: 88mm;
-  transform: scale(1.6);
+  transform: scale(1.8);
   transform-origin: top left;
 }
 
@@ -113,3 +113,17 @@
     display: none;
   }
 }
+
+.framing-preview {
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.framing-preview img { pointer-events: none; }
+.framing-preview.framing-dragging { cursor: grabbing; }
+.framing-guide, .framing-face-guide { position: absolute; pointer-events: none; z-index: 5; }
+.framing-guide { left: 0; right: 0; background: #7c5cff16; }
+.framing-guide-title { top: 0; height: 14%; }
+.framing-guide-text { bottom: 0; height: 33%; }
+.framing-face-guide { top: 32%; left: 0; right: 0; border-top: .2mm dashed #eee9; color: #fff; text-shadow: 0 0 1mm #000; font-size: 5pt; text-align: right; }
