@@ -104,9 +104,16 @@ function BorderlessLayout({ data, nameRef, textRef, typeRef, onArtLoad, landscap
   const { card, face, name, alternateName, originalName, art, originalArt, hasStats, symbols } = data;
   return (
     <>
+      {art && (
+        <div className="proxy-art-fill" style={{ backgroundImage: `url(${JSON.stringify(art)})` }} />
+      )}
       {art ? (
         <img
-          className="proxy-art-image"
+          className={`proxy-art-image ${data.offset > 0 ? "proxy-art-fade" : ""}`}
+          style={{
+            "--offset": data.offset,
+            transform: `translateY(${data.offset}%) scale(${data.zoom / 100})`,
+          }}
           src={art}
           alt={`Ilustración de ${originalName}`}
           onLoad={onArtLoad}
@@ -148,6 +155,7 @@ export default function ProxyCard({
   useOriginalArt = false,
   nameMode = "themed",
   layout = "borderless",
+  framingOverride,
 }) {
   const textRef = useRef(null);
   const nameRef = useRef(null);
@@ -172,6 +180,8 @@ export default function ProxyCard({
   const landscape = Boolean(art) && landscapeArt === art;
   const gem = rarityGem(card?.rarity);
   const data = {
+    offset: framingOverride?.offset ?? generated?.framing_offset_y ?? 0,
+    zoom: framingOverride?.zoom ?? generated?.framing_zoom ?? 100,
     card,
     face,
     name,

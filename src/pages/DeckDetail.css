@@ -95,3 +95,50 @@
   margin-top: 14px;
   color: #bce0c9;
 }
+
+.framing-card-wrap {
+  position: relative;
+  width: 63mm;
+  height: 88mm;
+}
+
+.framing-card-button {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  z-index: 4;
+  padding: 7px 12px;
+  transform: translateX(-50%);
+  opacity: 0;
+}
+
+.framing-card-wrap:hover .framing-card-button,
+.framing-card-wrap:focus-within .framing-card-button {
+  opacity: 1;
+}
+
+.framing-card-button:hover:not(:disabled) {
+  transform: translateX(-50%);
+}
+
+.deck-framing-panel {
+  margin-top: 18px;
+}
+
+.deck-framing-panel p {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: .82rem;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .framing-card-button {
+    opacity: 1;
+  }
+}
+
+@media print {
+  .framing-card-button {
+    display: none;
+  }
+}

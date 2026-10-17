@@ -457,3 +457,22 @@
     backdrop-filter: none;
   }
 }
+
+.borderless .proxy-art-fill {
+  position: absolute;
+  inset: -6%;
+  z-index: -3;
+  background-size: cover;
+  background-position: center 30%;
+  filter: blur(6px) brightness(.75) saturate(1.1);
+  transform: scale(1.1);
+}
+
+.borderless > .proxy-art-image {
+  transform-origin: center top;
+}
+
+.borderless > .proxy-art-fade {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 calc(var(--offset) * 1% + 4%));
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 calc(var(--offset) * 1% + 4%));
+}
