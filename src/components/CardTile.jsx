@@ -25,6 +25,7 @@ export default function CardTile({
   const [referenceWiki, setReferenceWiki] = useState("");
   const [referencePage, setReferencePage] = useState("");
   const [searchingReference, setSearchingReference] = useState(false);
+  const [wikiResult, setWikiResult] = useState(null);
   const [addingReference, setAddingReference] = useState(false);
   const [removingReference, setRemovingReference] = useState(false);
   const [referenceError, setReferenceError] = useState("");
@@ -49,6 +50,31 @@ export default function CardTile({
   };
   const status = referenceStatuses[referenceStatus] || referenceStatuses[""];
   const retryable = ["not_found", "rejected", "error"].includes(referenceStatus);
+  const wikiUrlProvided = /^http/i.test(referencePage.trim()) || /^http/i.test(referenceWiki.trim());
+  const wikiDisabledReason = !assignment
+    ? "Guarda primero el elemento temático."
+    : !element.trim() ? "Falta el elemento temático."
+      : !needsReference ? 'Marca "Este elemento necesita referencia".'
+        : !wikiUrlProvided && (!referenceWiki.trim() || !referencePage.trim())
+          ? 'Indica la wiki y la página, o pega la URL de la página en "Página".'
+          : disabled && !searchingReference ? "Hay una generación en curso." : "";
+  const skippedReasons = {
+    missing_wiki_or_page: "Falta la wiki o la página.",
+    no_reference_needed: "La casilla de referencia está desmarcada.",
+  };
+  const wikiResultText = !wikiResult ? ""
+    : wikiResult.status === "found" ? `Referencia encontrada.${wikiResult.message ? ` ${wikiResult.message}` : ""}`
+      : wikiResult.status === "rejected" ? `Imagen descartada: ${wikiResult.message || "La imagen no cumple los requisitos."}`
+        : wikiResult.status === "skipped" ? skippedReasons[wikiResult.skipped_reason] || "No se realizó la búsqueda."
+          : wikiResult.message || (wikiResult.status === "not_found" ? "No se encontró una imagen en la wiki." : "No se pudo buscar la referencia.");
+  const wikiResultTone = wikiResult?.status === "found" ? "found"
+    : ["not_found", "rejected"].includes(wikiResult?.status) ? "warning"
+      : wikiResult?.status === "error" ? "error" : "pending";
+  const wikiResultDisplay = wikiResult && (
+    <p className={`wiki-search-result reference-status-${wikiResultTone}`} aria-live="polite">
+      {wikiResultText}
+    </p>
+  );
   const referenceStatusDisplay = assignment?.needs_reference && (
     <div className="auto-reference-status" aria-live="polite">
       <span className={`reference-status reference-status-${status.tone}`} title={assignment.auto_reference_message || undefined}>
@@ -183,6 +209,7 @@ export default function CardTile({
     referenceRequest.current = true;
     setSearchingReference(true);
     setReferenceError("");
+    setWikiResult(null);
     try {
       const changed = needsReference !== Boolean(assignment?.needs_reference) ||
         referenceWiki.trim() !== (assignment?.reference_wiki || "") ||
@@ -197,7 +224,14 @@ export default function CardTile({
           reference_page: referencePage.trim(),
         });
       }
-      await onRetryAutoReference(deckCard.id);
+      const updatedCard = await onRetryAutoReference(deckCard.id);
+      const updatedAssignment = updatedCard.theme_assignment;
+      setReferenceWiki(updatedAssignment?.reference_wiki || "");
+      setReferencePage(updatedAssignment?.reference_page || "");
+      setWikiResult(updatedCard.auto_reference_result || {
+        status: updatedAssignment?.auto_reference_status || "skipped",
+        message: updatedAssignment?.auto_reference_message || "",
+      });
     } catch (requestError) {
       setReferenceError(requestError.response?.data?.detail || "No se pudo buscar la referencia en la wiki.");
     } finally {
@@ -375,20 +409,18 @@ export default function CardTile({
                     />
                   </label>
                   <p>Dominio de la wiki de la franquicia (Fandom, wiki.gg…) y el título exacto de la página del personaje.</p>
-                  {assignment && (
-                    <button
-                      type="button"
-                      className="secondary-button reference-wiki-search"
-                      disabled={controlsDisabled || !needsReference || !referenceWiki.trim() || !referencePage.trim() || !element.trim()}
-                      onClick={() => retryAutoReference(true)}
-                    >
-                      Buscar en la wiki
-                    </button>
-                  )}
-                  {referenceStatusDisplay}
-                  {editing && assignment?.auto_reference_message && referenceStatus !== "rejected" && (
-                    <p className="reference-search-message">{assignment.auto_reference_message}</p>
-                  )}
+                  <p>También puedes pegar la URL completa de la página de la wiki.</p>
+                  <button
+                    type="button"
+                    className="secondary-button reference-wiki-search"
+                    disabled={controlsDisabled || Boolean(wikiDisabledReason)}
+                    title={wikiDisabledReason || undefined}
+                    onClick={() => retryAutoReference(true)}
+                  >
+                    {searchingReference ? "Buscando…" : "Buscar en la wiki"}
+                  </button>
+                  {wikiDisabledReason && <p className="wiki-disabled-reason">{wikiDisabledReason}</p>}
+                  {wikiResultDisplay}
                   {!deckCard.theme_assignment ? (
                     <p>Guarda primero el elemento temático para poder agregar referencias.</p>
                   ) : (
@@ -459,6 +491,7 @@ export default function CardTile({
                 {assignmentError && <div className="card-resolution-error" role="alert">{assignmentError}</div>}
               </form>
             )}
+            {!editing && wikiResultDisplay}
             {searchingReference && <p role="status">Buscando imágenes en la wiki…</p>}
             {removingReference && <p role="status">Quitando referencia…</p>}
             {referenceError && <div className="card-resolution-error" role="alert">{referenceError}</div>}
