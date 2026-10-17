@@ -1,0 +1,135 @@
+.wiki-panel {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wiki-panel h3 {
+  font-size: 1rem;
+}
+
+.wiki-candidates {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 16px 0;
+  padding: 0;
+  border: 0;
+}
+
+.wiki-candidates legend {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: .8rem;
+}
+
+.wiki-candidate {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.wiki-candidate:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(124, 92, 255, .08);
+}
+
+.wiki-candidate-unavailable {
+  opacity: .7;
+  cursor: default;
+}
+
+.wiki-candidate > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wiki-candidate-domain,
+.wiki-candidate-why,
+.wiki-candidate-ok,
+.wiki-candidate-error {
+  display: block;
+  margin-top: 5px;
+  font-size: .78rem;
+}
+
+.wiki-candidate-domain,
+.wiki-candidate-why {
+  color: var(--text-muted);
+}
+
+.wiki-candidate-ok {
+  color: #91d7af;
+}
+
+.wiki-candidate-error {
+  color: #ffaaaa;
+}
+
+.wiki-candidate-badges,
+.wiki-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.wiki-panel-fandom,
+.wiki-panel-recommended {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #ffffff0a;
+  font-size: .72rem;
+}
+
+.wiki-panel-fandom,
+.wiki-panel .wiki-panel-warning {
+  color: #e8bf7a;
+}
+
+.wiki-panel-recommended {
+  color: #b9abff;
+}
+
+.wiki-panel-fields,
+.wiki-reference-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.wiki-panel-fields label,
+.wiki-reference-count label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: .82rem;
+}
+
+.wiki-panel-fields label {
+  flex: 1 1 220px;
+}
+
+.wiki-panel input:not([type="radio"]),
+.wiki-panel select {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.wiki-reference-count small {
+  max-width: 55ch;
+  color: var(--text-muted);
+  line-height: 1.5;
+}

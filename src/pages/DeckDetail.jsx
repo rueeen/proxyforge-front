@@ -6,6 +6,7 @@ import ProxyCard from "../components/ProxyCard";
 import ProgressBar from "../components/ProgressBar";
 import ThemeQuestions from "../components/ThemeQuestions";
 import FramingEditor from "../components/FramingEditor";
+import WikiPanel from "../components/WikiPanel";
 import "./DeckDetail.css";
 
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
@@ -32,6 +33,7 @@ export default function DeckDetail() {
   const [framingSummary, setFramingSummary] = useState(null);
   const [changingLayout, setChangingLayout] = useState(false);
   const [searchingReferences, setSearchingReferences] = useState(false);
+  const [updatingWiki, setUpdatingWiki] = useState(false);
   const [autoReferenceSummary, setAutoReferenceSummary] = useState(null);
   const [planning, setPlanning] = useState(false);
   const [rewritingTexts, setRewritingTexts] = useState(false);
@@ -112,7 +114,7 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -439,8 +441,14 @@ export default function DeckDetail() {
     }
   }
 
+  function canSearchReferences() {
+    return deck.reference_wiki_confirmed || deck.cards.some((card) => (
+      card.theme_assignment?.edited && card.theme_assignment.reference_wiki?.trim()
+    ));
+  }
+
   async function searchAutoReferences(force = false) {
-    if (busy || panelRequest.current) {
+    if (busy || panelRequest.current || !canSearchReferences()) {
       return;
     }
     const failedIds = deck.cards.filter((card) => (
@@ -466,6 +474,53 @@ export default function DeckDetail() {
       panelRequest.current = false;
       setSearchingReferences(false);
     }
+  }
+
+  async function updateWikiConfiguration(method, path, body) {
+    if (busy || panelRequest.current) {
+      return;
+    }
+    panelRequest.current = true;
+    setUpdatingWiki(true);
+    try {
+      const response = await api.request({ method, url: path, data: body });
+      replacePanelDeck(response.data);
+      setAutoReferenceSummary(null);
+      await loadEstimate();
+      return response.data;
+    } catch (requestError) {
+      if (requestError.response?.status === 409) {
+        try {
+          const loadedDeck = await loadDeck();
+          setJob(loadedDeck.active_job);
+        } catch {
+          setNotice("No se pudo recuperar el proceso activo.");
+        }
+      }
+      throw requestError;
+    } finally {
+      panelRequest.current = false;
+      setUpdatingWiki(false);
+    }
+  }
+
+  async function findWikiCandidates() {
+    return updateWikiConfiguration("post", `/decks/${id}/wiki-candidates/`);
+  }
+
+  async function confirmWiki(domain, altDomain) {
+    return updateWikiConfiguration("put", `/decks/${id}/reference-wiki/`, {
+      domain,
+      alt_domain: altDomain,
+    });
+  }
+
+  async function unconfirmWiki() {
+    return updateWikiConfiguration("delete", `/decks/${id}/reference-wiki/`);
+  }
+
+  async function changeReferenceCount(n) {
+    return updateWikiConfiguration("patch", `/decks/${id}/`, { auto_reference_count: n });
   }
 
   async function retryAutoReference(cardId) {
@@ -631,6 +686,15 @@ export default function DeckDetail() {
       </header>
       <section className="generation-panel">
         <div className="theme-plan-panel">
+          <WikiPanel
+            key={id}
+            deck={deck}
+            busy={busy}
+            onFindCandidates={findWikiCandidates}
+            onConfirm={confirmWiki}
+            onUnconfirm={unconfirmWiki}
+            onChangeCount={changeReferenceCount}
+          />
           {interviewOpen ? (
             preparingQuestions ? null : deck.theme_questions?.length ? (
               <ThemeQuestions
@@ -706,7 +770,7 @@ export default function DeckDetail() {
                 <button
                   type="button"
                   className="secondary-button"
-                  disabled={busy}
+                  disabled={busy || !canSearchReferences()}
                   onClick={() => searchAutoReferences()}
                 >
                   Buscar referencias automáticas ({deck.auto_reference_counts.pending})
@@ -715,12 +779,13 @@ export default function DeckDetail() {
                 <button
                   type="button"
                   className="secondary-button"
-                  disabled={busy}
+                  disabled={busy || !canSearchReferences()}
                   onClick={() => searchAutoReferences(true)}
                 >
                   Reintentar fallidas
                 </button>
               )}
+              {!canSearchReferences() && <p>Confirma primero la wiki del mazo</p>}
               {searchingReferences && (
                 <div className="planning-status" role="status">
                   <span className="spinner" />
@@ -802,6 +867,7 @@ export default function DeckDetail() {
         <p className="estimate">
           Esta tanda: <strong>{estimate.batch_size}</strong> cartas <i>·</i>{" "}
           <strong>USD {estimate.batch_cost_usd.toFixed(2)}</strong>
+          {estimate.reference_cost_usd > 0 && <span> (incluye USD {estimate.reference_cost_usd.toFixed(2)} en referencias)</span>}
         </p>
         <p className="full-deck-estimate">Mazo completo: USD {estimate.estimated_cost_usd.toFixed(2)}</p>
         {active && (
