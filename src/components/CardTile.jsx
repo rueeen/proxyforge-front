@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./CardTile.css";
+import WikiImagePicker from "./WikiImagePicker";
+import { clipboardImage, referenceImageError } from "../clipboardImages";
 
 export default function CardTile({
   deckCard,
@@ -9,10 +11,13 @@ export default function CardTile({
   onAddReference,
   onRemoveReference,
   onRetryAutoReference,
+  onLoadWikiImages,
+  onPickWikiImage,
   disabled = false,
   layout = "borderless",
 }) {
   const [modalOpen, setModalOpen] = useState(null);
+  const [wikiPicker, setWikiPicker] = useState(null);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -164,19 +169,19 @@ export default function CardTile({
     }
   }
 
-  async function addReference({ file, url }) {
+  async function addReference({ file, url }, propagateError = false) {
     if (referenceRequest.current || controlsDisabled || maximumReferences || !assignment) {
       return;
     }
     setReferenceError("");
     setPasteHint("");
-    if (file && file.size > 10 * 1024 * 1024) {
-      setReferenceError("La imagen debe pesar 10 MB o menos.");
-      return;
-    }
-    if (file && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setReferenceError("Formato no compatible; usa PNG, JPG o WEBP.");
-      return;
+    const validation = file ? referenceImageError(file) : "";
+    if (validation) {
+      setReferenceError(validation);
+      if (propagateError) {
+        throw new Error(validation);
+      }
+      return false;
     }
     if (!file && !url?.trim()) {
       setReferenceError("Ingresa una URL de imagen.");
@@ -187,8 +192,13 @@ export default function CardTile({
     try {
       await onAddReference(deckCard.id, file ? { file } : { url: url.trim() });
       setReferenceUrl("");
+      return true;
     } catch (requestError) {
       setReferenceError(requestError.response?.data?.detail || "No se pudo agregar la referencia.");
+      if (propagateError) {
+        throw requestError;
+      }
+      return false;
     } finally {
       referenceRequest.current = false;
       setAddingReference(false);
@@ -211,21 +221,16 @@ export default function CardTile({
   }
 
   function pasteReference(event) {
-    const items = [...event.clipboardData.items];
-    const image = items.find((item) => item.kind === "file" && ["image/png", "image/jpeg", "image/webp"].includes(item.type));
-    const hasImage = image || items.some((item) => item.kind === "file" && item.type.startsWith("image/"));
+    const { file, error: pasteError, hasImage } = clipboardImage(event.clipboardData);
     if (hasImage) {
       event.preventDefault();
       event.stopPropagation();
       if (controlsDisabled || maximumReferences || !assignment) {
         return;
       }
-      if (!image) {
-        setReferenceError("Formato no compatible; usa PNG, JPG o WEBP.");
-        return;
-      }
-      const file = image.getAsFile();
-      if (file) {
+      if (pasteError) {
+        setReferenceError(pasteError);
+      } else if (file) {
         addReference({ file });
       }
       return;
@@ -252,6 +257,31 @@ export default function CardTile({
     } else {
       const uri = event.dataTransfer.getData("text/uri-list").split("\n").find((line) => line.trim() && !line.startsWith("#"));
       acceptImageUrl(uri || event.dataTransfer.getData("text/plain"));
+    }
+  }
+
+  async function pickWikiImage(file, wiki) {
+    if (referenceRequest.current) {
+      throw new Error("Espera a que termine la operación actual.");
+    }
+    referenceRequest.current = true;
+    setAddingReference(true);
+    try {
+      const automatic = references.filter((reference) => reference.origin === "auto");
+      let remaining = references.length;
+      if (automatic.length && window.confirm("¿Quitar la referencia automática actual y usar solo la elegida?")) {
+        for (const reference of automatic) {
+          await onRemoveReference(deckCard.id, reference.id);
+          remaining -= 1;
+        }
+      }
+      if (remaining >= 3) {
+        throw new Error("Máximo de 3 referencias alcanzado; quita una para elegir otra.");
+      }
+      await onPickWikiImage(deckCard.id, file, wiki);
+    } finally {
+      referenceRequest.current = false;
+      setAddingReference(false);
     }
   }
 
@@ -379,6 +409,16 @@ export default function CardTile({
                 Abrir página en la wiki ↗
               </a>
             )}
+            {referenceStatus === "found" && assignment && (
+              <button
+                type="button"
+                className="reference-retry"
+                disabled={controlsDisabled}
+                onClick={() => setWikiPicker({ wiki: assignment.reference_wiki || "", page: assignment.reference_page || "" })}
+              >
+                Cambiar imagen
+              </button>
+            )}
             {assignment?.needs_reference && retryable && (
               <button
                 type="button"
@@ -400,12 +440,12 @@ export default function CardTile({
                       onClick={() => setModalOpen({
                         url: reference.image_url,
                         alt: `Referencia ${index + 1} de ${name}`,
-                        sourceUrl: reference.origin === "auto" ? reference.source_url : null,
+                        sourceUrl: ["auto", "wiki"].includes(reference.origin) ? reference.source_url : null,
                       })}
                     >
                       <img src={reference.image_url} alt={`Referencia ${index + 1} de ${name}`} />
                     </button>
-                    {reference.origin === "auto" && <span className="reference-auto-badge">auto</span>}
+                    {["auto", "wiki"].includes(reference.origin) && <span className="reference-auto-badge">{reference.origin}</span>}
                     <button
                       type="button"
                       className="reference-remove"
@@ -501,6 +541,15 @@ export default function CardTile({
                     onClick={() => retryAutoReference(true)}
                   >
                     {searchingReference ? "Buscando…" : "Buscar en la wiki"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button reference-wiki-search"
+                    disabled={controlsDisabled || Boolean(wikiDisabledReason)}
+                    title={wikiDisabledReason || undefined}
+                    onClick={() => setWikiPicker({ wiki: referenceWiki, page: referencePage })}
+                  >
+                    Elegir imagen de la wiki
                   </button>
                   {assignment?.reference_page_url && (
                     <a className="reference-wiki-link" href={assignment.reference_page_url} target="_blank" rel="noreferrer">
@@ -611,6 +660,22 @@ export default function CardTile({
         )}
         {error && <div className="card-resolution-error">{error}</div>}
       </div>
+      {wikiPicker && (
+        <WikiImagePicker
+          initialWiki={wikiPicker.wiki}
+          initialPage={wikiPicker.page}
+          loadImages={(wiki, page) => onLoadWikiImages(deckCard.id, wiki, page)}
+          onPick={pickWikiImage}
+          onPasteFile={async (file) => {
+            const added = await addReference({ file }, true);
+            if (!added) {
+              throw new Error("No se pudo agregar la imagen. Comprueba el límite de referencias y espera a que termine la operación actual.");
+            }
+          }}
+          onClose={() => setWikiPicker(null)}
+          maxReached={maximumReferences}
+        />
+      )}
       {modalOpen && createPortal(
         <div
           className="image-modal"
