@@ -26,6 +26,7 @@ export default function DeckDetail() {
   const [reloadKey, setReloadKey] = useState(0);
   const [symbols, setSymbols] = useState({});
   const [view, setView] = useState("art");
+  const [changingLayout, setChangingLayout] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [preparingQuestions, setPreparingQuestions] = useState(false);
@@ -99,7 +100,7 @@ export default function DeckDetail() {
   const jobId = job?.id;
   const jobStatus = job?.status;
   const active = jobStatus === "pending" || jobStatus === "running";
-  const busy = active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -182,6 +183,36 @@ export default function DeckDetail() {
       }
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function changeLayout(cardLayout) {
+    if (busy || panelRequest.current || cardLayout === (deck.card_layout || "borderless")) {
+      return;
+    }
+    if (!window.confirm("Las cartas sin arte en este formato quedarán pendientes de generar. Las imágenes del otro formato se conservan.")) {
+      return;
+    }
+    panelRequest.current = true;
+    setChangingLayout(true);
+    setError("");
+    try {
+      const response = await api.patch(`/decks/${id}/`, { card_layout: cardLayout });
+      replacePanelDeck(response.data);
+      await loadEstimate();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "No se pudo cambiar el formato del mazo.");
+      if (requestError.response?.status === 409) {
+        try {
+          const loadedDeck = await loadDeck();
+          setJob(loadedDeck.active_job);
+        } catch {
+          setNotice("No se pudo recuperar el proceso activo.");
+        }
+      }
+    } finally {
+      panelRequest.current = false;
+      setChangingLayout(false);
     }
   }
 
@@ -511,6 +542,18 @@ export default function DeckDetail() {
             Carta
           </button>
         </div>
+        <label className="deck-layout-select">
+          Formato
+          <select
+            aria-label="Formato"
+            value={deck.card_layout || "borderless"}
+            onChange={(event) => changeLayout(event.target.value)}
+            disabled={busy}
+          >
+            <option value="borderless">Sin borde</option>
+            <option value="classic">Clásico</option>
+          </select>
+        </label>
         <Link className="secondary-button print-link" to={`/mazo/${id}/imprimir`}>Imprimir</Link>
       </div>
       <div className="cards-area">
@@ -528,12 +571,19 @@ export default function DeckDetail() {
                   <CardTile
                     key={card.id}
                     deckCard={card}
+                    layout={deck.card_layout || "borderless"}
                     onRegenerate={regenerateCard}
                     onSaveAssignment={saveAssignment}
                     disabled={busy}
                   />
                 ) : (
-                  <ProxyCard key={card.id} deckCard={card} symbols={symbols} />
+                  <ProxyCard
+                    key={card.id}
+                    deckCard={card}
+                    symbols={symbols}
+                    layout={deck.card_layout || "borderless"}
+                    nameMode="themed"
+                  />
                 )
               ))}
             </div>

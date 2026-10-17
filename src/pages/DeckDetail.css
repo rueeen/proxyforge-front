@@ -57,3 +57,24 @@
   background: rgba(255, 183, 77, .1);
   color: #ffd08a;
 }
+
+.deck-view-controls {
+  flex-wrap: wrap;
+}
+
+.deck-layout-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  font-size: .85rem;
+}
+
+.deck-layout-select select {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}

@@ -13,8 +13,9 @@ export default function PrintSheet() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [layout, setLayout] = useState("borderless");
   const [paper, setPaper] = useState("a4");
-  const [nameMode, setNameMode] = useState("original");
+  const [nameMode, setNameMode] = useState("themed");
   const [includeBasics, setIncludeBasics] = useState(false);
   const [useOriginalArt, setUseOriginalArt] = useState(true);
   const [generatedOnly, setGeneratedOnly] = useState(false);
@@ -39,6 +40,7 @@ export default function PrintSheet() {
         ]);
         if (!controller.signal.aborted) {
           setDeck(response.data);
+          setLayout(response.data.card_layout || "borderless");
         }
       } catch (requestError) {
         if (!controller.signal.aborted) {
@@ -126,6 +128,17 @@ export default function PrintSheet() {
               <option value="themed">Temático</option>
             </select>
           </label>
+          <label>
+            Formato
+            <select
+              aria-label="Formato"
+              value={layout}
+              onChange={(event) => setLayout(event.target.value)}
+            >
+              <option value="borderless">Sin borde</option>
+              <option value="classic">Clásico</option>
+            </select>
+          </label>
           <label className="print-checkbox">
             <input
               type="checkbox"
@@ -162,6 +175,7 @@ export default function PrintSheet() {
         <button className="primary-button" onClick={() => window.print()} disabled={pages.length === 0}>
           Imprimir / Guardar PDF
         </button>
+        <p>Las cartas generadas para el otro formato se verán recortadas.</p>
         <p>En el diálogo de impresión, usa escala 100% (o "Tamaño real") y márgenes mínimos.</p>
       </div>
       {pages.length === 0 && (
@@ -179,6 +193,7 @@ export default function PrintSheet() {
                     symbols={symbols}
                     useOriginalArt={useOriginalArt}
                     nameMode={nameMode}
+                    layout={layout}
                   />
                 </div>
               ))}
