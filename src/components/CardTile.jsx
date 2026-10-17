@@ -30,6 +30,9 @@ export default function CardTile({
   const [addingReference, setAddingReference] = useState(false);
   const [removingReference, setRemovingReference] = useState(false);
   const [referenceError, setReferenceError] = useState("");
+  const [pasteHint, setPasteHint] = useState("");
+  const [draggingReference, setDraggingReference] = useState(false);
+  const assignmentFormRef = useRef(null);
   const fileInputRef = useRef(null);
   const referenceRequest = useRef(false);
   const references = deckCard.theme_assignment?.references || [];
@@ -48,6 +51,7 @@ export default function CardTile({
     not_found: { label: "Sin imagen en la wiki", tone: "warning" },
     rejected: { label: "Imagen descartada", tone: "warning" },
     error: { label: "Error al buscar", tone: "error" },
+    blocked: { label: "Descarga bloqueada", tone: "warning" },
   };
   const status = referenceStatuses[referenceStatus] || referenceStatuses[""];
   const retryable = ["not_found", "rejected", "error"].includes(referenceStatus);
@@ -69,7 +73,7 @@ export default function CardTile({
         : wikiResult.status === "skipped" ? skippedReasons[wikiResult.skipped_reason] || "No se realizó la búsqueda."
           : wikiResult.message || (wikiResult.status === "not_found" ? "No se encontró una imagen en la wiki." : "No se pudo buscar la referencia.");
   const wikiResultTone = wikiResult?.status === "found" ? "found"
-    : ["not_found", "rejected"].includes(wikiResult?.status) ? "warning"
+    : ["not_found", "rejected", "blocked"].includes(wikiResult?.status) ? "warning"
       : wikiResult?.status === "error" ? "error" : "pending";
   const wikiResultDisplay = wikiResult && (
     <p className={`wiki-search-result reference-status-${wikiResultTone}`} aria-live="polite">
@@ -81,11 +85,17 @@ export default function CardTile({
       <span className={`reference-status reference-status-${status.tone}`} title={assignment.auto_reference_message || undefined}>
         {status.label}
       </span>
-      {referenceStatus === "rejected" && assignment.auto_reference_message && (
+      {["rejected", "blocked"].includes(referenceStatus) && assignment.auto_reference_message && (
         <small>{assignment.auto_reference_message}</small>
       )}
     </div>
   );
+
+  useEffect(() => {
+    if (editing) {
+      assignmentFormRef.current?.focus();
+    }
+  }, [editing]);
 
   useEffect(() => {
     if (!modalOpen) {
@@ -155,16 +165,17 @@ export default function CardTile({
   }
 
   async function addReference({ file, url }) {
-    if (referenceRequest.current || controlsDisabled || maximumReferences) {
+    if (referenceRequest.current || controlsDisabled || maximumReferences || !assignment) {
       return;
     }
     setReferenceError("");
+    setPasteHint("");
     if (file && file.size > 10 * 1024 * 1024) {
       setReferenceError("La imagen debe pesar 10 MB o menos.");
       return;
     }
     if (file && !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setReferenceError("Selecciona una imagen JPEG, PNG o WebP.");
+      setReferenceError("Formato no compatible; usa PNG, JPG o WEBP.");
       return;
     }
     if (!file && !url?.trim()) {
@@ -181,6 +192,66 @@ export default function CardTile({
     } finally {
       referenceRequest.current = false;
       setAddingReference(false);
+    }
+  }
+
+  function acceptImageUrl(text) {
+    try {
+      const url = new URL(text.trim());
+      if (!["http:", "https:"].includes(url.protocol) || !/\.(png|jpe?g|webp)$/i.test(url.pathname)) {
+        return false;
+      }
+      setReferenceUrl(text.trim());
+      setReferenceError("");
+      setPasteHint("Se pegó una URL; si la wiki bloquea la descarga, copia la imagen en vez del enlace.");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function pasteReference(event) {
+    const items = [...event.clipboardData.items];
+    const image = items.find((item) => item.kind === "file" && ["image/png", "image/jpeg", "image/webp"].includes(item.type));
+    const hasImage = image || items.some((item) => item.kind === "file" && item.type.startsWith("image/"));
+    if (hasImage) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (controlsDisabled || maximumReferences || !assignment) {
+        return;
+      }
+      if (!image) {
+        setReferenceError("Formato no compatible; usa PNG, JPG o WEBP.");
+        return;
+      }
+      const file = image.getAsFile();
+      if (file) {
+        addReference({ file });
+      }
+      return;
+    }
+    if (event.target.closest("input, textarea, [contenteditable='true']") || controlsDisabled || maximumReferences || !assignment) {
+      return;
+    }
+    if (acceptImageUrl(event.clipboardData.getData("text/plain"))) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
+  function dropReference(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDraggingReference(false);
+    if (controlsDisabled || maximumReferences || !assignment) {
+      return;
+    }
+    const file = [...event.dataTransfer.files].find((item) => item.type.startsWith("image/"));
+    if (file) {
+      addReference({ file });
+    } else {
+      const uri = event.dataTransfer.getData("text/uri-list").split("\n").find((line) => line.trim() && !line.startsWith("#"));
+      acceptImageUrl(uri || event.dataTransfer.getData("text/plain"));
     }
   }
 
@@ -303,6 +374,11 @@ export default function CardTile({
               </div>
             )}
             {referenceStatusDisplay}
+            {!editing && ["blocked", "not_found"].includes(referenceStatus) && assignment?.reference_page_url && (
+              <a className="reference-wiki-link" href={assignment.reference_page_url} target="_blank" rel="noreferrer">
+                Abrir página en la wiki ↗
+              </a>
+            )}
             {assignment?.needs_reference && retryable && (
               <button
                 type="button"
@@ -353,7 +429,13 @@ export default function CardTile({
                 Editar tema
               </button>
             ) : (
-              <form className="assignment-form" onSubmit={saveAssignment}>
+              <form
+                className="assignment-form"
+                onSubmit={saveAssignment}
+                onPaste={pasteReference}
+                tabIndex={-1}
+                ref={assignmentFormRef}
+              >
                 <label>
                   Elemento
                   <input
@@ -420,6 +502,11 @@ export default function CardTile({
                   >
                     {searchingReference ? "Buscando…" : "Buscar en la wiki"}
                   </button>
+                  {assignment?.reference_page_url && (
+                    <a className="reference-wiki-link" href={assignment.reference_page_url} target="_blank" rel="noreferrer">
+                      Abrir página en la wiki ↗
+                    </a>
+                  )}
                   {wikiDisabledReason && <p className="wiki-disabled-reason">{wikiDisabledReason}</p>}
                   {wikiResultDisplay}
                   {!deckCard.theme_assignment ? (
@@ -476,8 +563,29 @@ export default function CardTile({
                           }}
                         />
                       </div>
-                      {maximumReferences && <p>Máximo alcanzado</p>}
-                      {addingReference && <p role="status">Agregando…</p>}
+                      <div
+                        className={`reference-paste-zone ${draggingReference ? "reference-paste-dragover" : ""}`}
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Pegar o arrastrar imagen de referencia"
+                        aria-disabled={controlsDisabled || maximumReferences}
+                        aria-busy={addingReference}
+                        onPaste={pasteReference}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = controlsDisabled || maximumReferences ? "none" : "copy";
+                          if (!controlsDisabled && !maximumReferences) {
+                            setDraggingReference(true);
+                          }
+                        }}
+                        onDragLeave={() => setDraggingReference(false)}
+                        onDrop={dropReference}
+                      >
+                        <span role="status">
+                          {maximumReferences ? "Máximo alcanzado" : addingReference ? "Agregando…" : "Pega aquí una imagen (Ctrl+V) o arrástrala desde tu equipo"}
+                        </span>
+                      </div>
+                      {pasteHint && <p role="status">{pasteHint}</p>}
                     </>
                   )}
                 </section>
