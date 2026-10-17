@@ -78,3 +78,20 @@
   color: var(--text);
   font: inherit;
 }
+
+.auto-reference-panel {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.auto-reference-panel p:last-child {
+  margin-bottom: 0;
+}
+
+.auto-reference-panel .auto-reference-summary {
+  margin-top: 14px;
+  color: #bce0c9;
+}
