@@ -401,6 +401,29 @@ export default function DeckDetail() {
     }
   }
 
+  async function loadWikiImages(cardId, wiki, page) {
+    const response = await api.get(`/cards/${cardId}/theme-assignment/wiki-images/`, {
+      params: { wiki: wiki || undefined, page: page || undefined },
+    });
+    return response.data;
+  }
+
+  async function pickWikiImage(cardId, file, wiki) {
+    setEditingAssignments((count) => count + 1);
+    try {
+      const response = await api.post(`/cards/${cardId}/theme-assignment/references/wiki/`, { file, wiki });
+      setDeck((current) => ({
+        ...current,
+        cards: current.cards.map((card) => card.id === cardId ? response.data : card),
+      }));
+      await Promise.all([loadEstimate(), loadDeck()]);
+      return response.data;
+    } finally {
+      // Preserve blocked/full_url on the original error for the picker.
+      setEditingAssignments((count) => count - 1);
+    }
+  }
+
   async function removeReference(cardId, referenceId) {
     setEditingAssignments((count) => count + 1);
     try {
@@ -839,6 +862,8 @@ export default function DeckDetail() {
                     onAddReference={addReference}
                     onRemoveReference={removeReference}
                     onRetryAutoReference={retryAutoReference}
+                    onLoadWikiImages={loadWikiImages}
+                    onPickWikiImage={pickWikiImage}
                     disabled={busy}
                   />
                 ) : (
