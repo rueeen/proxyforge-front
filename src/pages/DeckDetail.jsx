@@ -10,6 +10,12 @@ import WikiPanel from "../components/WikiPanel";
 import "./DeckDetail.css";
 import { canTryHost, fetchImageInBrowser } from "../browserImages";
 
+const originalArtHints = {
+  auto: "Se usa cuando la carta no tiene imágenes de personaje. Ideal para temas libres: conserva la composición y los detalles de la carta original.",
+  always: "Se suma también a las referencias de personaje.",
+  off: "Solo se usa como inspiración del texto, no como imagen.",
+};
+
 const sectionOrder = { commander: 0, main: 1, sideboard: 2 };
 const sectionNames = { commander: "Comandante", main: "Mazo principal", sideboard: "Sideboard" };
 
@@ -53,6 +59,7 @@ export default function DeckDetail() {
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
   const [changingResolution, setChangingResolution] = useState(false);
+  const [changingOriginalArtMode, setChangingOriginalArtMode] = useState(false);
   const [browserProgress, setBrowserProgress] = useState(null);
   const [browserSummary, setBrowserSummary] = useState(null);
   const [browserWarnings, setBrowserWarnings] = useState([]);
@@ -70,6 +77,8 @@ export default function DeckDetail() {
   const [planning, setPlanning] = useState(false);
   const [rewritingTexts, setRewritingTexts] = useState(false);
   const [rewriteSummary, setRewriteSummary] = useState(null);
+  const [shorteningNames, setShorteningNames] = useState(false);
+  const [shortenedCount, setShortenedCount] = useState(null);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [preparingQuestions, setPreparingQuestions] = useState(false);
   const [savingAnswers, setSavingAnswers] = useState(false);
@@ -108,6 +117,7 @@ export default function DeckDetail() {
       setFramingCardId(null);
       setFramingSummary(null);
       setRewriteSummary(null);
+      setShortenedCount(null);
       setPanelError("");
       setAutoReferenceSummary(null);
       setError("");
@@ -157,7 +167,7 @@ export default function DeckDetail() {
   const planActive = active && jobKind === "plan";
   const referencesActive = active && jobKind === "references";
   const imagesActive = active && jobKind === "images";
-  const busy = Boolean(browserProgress) || changingResolution || updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
+  const busy = changingOriginalArtMode || Boolean(browserProgress) || changingResolution || updatingWiki || rewritingTexts || adjustingFraming || searchingReferences || changingLayout || active || generating || planning || preparingQuestions || savingAnswers || editingAssignments > 0 || regeneratingCards > 0;
 
   useEffect(() => {
     if (jobStatus !== "pending" && jobStatus !== "running") {
@@ -580,26 +590,57 @@ export default function DeckDetail() {
     }
   }
 
-  async function rewriteTexts() {
+  async function rewriteTexts({ onlyLongNames = false } = {}) {
     if (busy || panelRequest.current) {
       return;
     }
-    if (!window.confirm("Se reescribirán el nombre temático y el flavor de las cartas ya generadas, en el idioma configurado. El arte no cambia ni se regenera.")) {
+    if (!onlyLongNames && !window.confirm("Se reescribirán el nombre temático y el flavor de las cartas ya generadas, en el idioma configurado. El arte no cambia ni se regenera.")) {
       return;
     }
     panelRequest.current = true;
     setRewritingTexts(true);
+    setShorteningNames(onlyLongNames);
     setRewriteSummary(null);
+    setShortenedCount(null);
     setPanelError("");
     try {
-      const response = await api.post(`/decks/${id}/rewrite-texts/`);
+      const response = onlyLongNames
+        ? await api.post(`/decks/${id}/rewrite-texts/`, { only_long_names: true })
+        : await api.post(`/decks/${id}/rewrite-texts/`);
       replacePanelDeck(response.data);
-      setRewriteSummary(response.data.rewrite_summary);
+      if (onlyLongNames) {
+        setShortenedCount(response.data.rewrite_summary?.updated ?? 0);
+      } else {
+        setRewriteSummary(response.data.rewrite_summary);
+      }
     } catch (requestError) {
       await handlePanelError(requestError, "No se pudieron reescribir los textos.");
     } finally {
       panelRequest.current = false;
       setRewritingTexts(false);
+      setShorteningNames(false);
+    }
+  }
+
+  async function changeOriginalArtMode(mode) {
+    if (busy || panelRequest.current || mode === (deck.original_art_mode || "auto")) {
+      return;
+    }
+    if (!window.confirm("Las cartas afectadas quedarán pendientes de regenerar.")) {
+      return;
+    }
+    panelRequest.current = true;
+    setChangingOriginalArtMode(true);
+    setPanelError("");
+    try {
+      const response = await api.patch(`/decks/${id}/`, { original_art_mode: mode });
+      replacePanelDeck(response.data);
+      await loadEstimate();
+    } catch (requestError) {
+      await handlePanelError(requestError, "No se pudo cambiar el modo de arte original.");
+    } finally {
+      panelRequest.current = false;
+      setChangingOriginalArtMode(false);
     }
   }
 
@@ -846,6 +887,9 @@ export default function DeckDetail() {
     card.theme_assignment?.needs_reference &&
     ["not_found", "rejected", "error"].includes(card.theme_assignment.auto_reference_status)
   ));
+  const longNameCount = deck.cards.filter(({ generated_image: image }) => (
+    image?.themed_name && Number.isFinite(image.name_limit) && image.themed_name.length > image.name_limit
+  )).length;
   const blockedReferenceCards = deck.cards.filter((card) => card.theme_assignment?.auto_reference_status === "blocked");
   const framingCard = deck.cards.find((card) => card.id === framingCardId);
   const warning = jobStatus === "failed" || jobStatus === "cancelled" || (jobKind === "images" && job?.failed_cards > 0);
@@ -1011,15 +1055,21 @@ export default function DeckDetail() {
           )}
           {deck.cards.some((card) => card.generated_image) && (
             <div className="rewrite-texts-panel">
-              <button type="button" className="secondary-button" disabled={busy} onClick={rewriteTexts}>
+              <button type="button" className="secondary-button" disabled={busy} onClick={() => rewriteTexts()}>
                 Reescribir nombres y flavor
               </button>
+              {longNameCount > 0 && (
+                <button type="button" className="secondary-button" disabled={busy} onClick={() => rewriteTexts({ onlyLongNames: true })}>
+                  Acortar nombres largos ({longNameCount})
+                </button>
+              )}
               {rewritingTexts && (
                 <div className="planning-status" role="status">
                   <span className="spinner" />
-                  Reescribiendo textos…
+                  {shorteningNames ? "Acortando nombres…" : "Reescribiendo textos…"}
                 </div>
               )}
+              {shortenedCount !== null && <p role="status">Acortados: {shortenedCount}</p>}
               {rewriteSummary && (
                 <p role="status">Actualizadas: {rewriteSummary.updated} · Sin cambios: {rewriteSummary.skipped}</p>
               )}
@@ -1050,6 +1100,22 @@ export default function DeckDetail() {
             </select>
           </label>
           <p>2K: más nitidez para imprimir y hacer zoom (~USD 0,02 más por imagen). Afecta solo a las imágenes nuevas o regeneradas.</p>
+        </div>
+        <div className="deck-resolution-control">
+          <label>Arte original como referencia
+            <select
+              aria-label="Arte original como referencia"
+              aria-describedby="original-art-hint"
+              value={deck.original_art_mode || "auto"}
+              disabled={busy}
+              onChange={(event) => changeOriginalArtMode(event.target.value)}
+            >
+              <option value="auto">Automático (recomendado)</option>
+              <option value="always">Siempre</option>
+              <option value="off">No usar</option>
+            </select>
+          </label>
+          <p id="original-art-hint">{originalArtHints[deck.original_art_mode || "auto"]}</p>
         </div>
         {(deck.card_layout || "borderless") === "borderless" && (
           <div className="deck-framing-panel">

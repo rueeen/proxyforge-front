@@ -69,7 +69,7 @@ function Stats({ face }) {
 function CardTitle({ name, nameRef, face, symbols }) {
   return (
     <header className="proxy-title-bar">
-      <h3 ref={nameRef}>{name}</h3>
+      <h3 ref={nameRef} title={name}>{name}</h3>
       <span className="proxy-mana-cost">{renderSymbols(face?.mana_cost || "", symbols)}</span>
     </header>
   );
@@ -205,7 +205,13 @@ export default function ProxyCard({
     function fit() {
       if (active) {
         fitText(textRef.current, 8.5, 5.5);
-        fitText(nameRef.current, borderless ? 8.5 : 9, borderless ? 5.5 : 6, true);
+        const title = nameRef.current;
+        title.style.removeProperty("letter-spacing");
+        fitText(title, borderless ? 8.5 : 9, 5, true);
+        if (title.scrollWidth > title.clientWidth) {
+          title.style.letterSpacing = "0";
+        }
+        title.parentElement.classList.toggle("proxy-name-clipped", title.scrollWidth > title.clientWidth);
         fitText(typeRef.current, 6.5, 5, true);
       }
     }
@@ -217,6 +223,7 @@ export default function ProxyCard({
     images.forEach((image) => image.addEventListener("load", fit));
     const observer = new ResizeObserver(fit);
     observer.observe(textRef.current);
+    observer.observe(nameRef.current);
     window.addEventListener("beforeprint", fit);
     window.addEventListener("afterprint", fit);
     return () => {

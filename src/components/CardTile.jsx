@@ -395,6 +395,9 @@ export default function CardTile({
         {generatedImage?.themed_name && (
           <p className="card-themed-name">{generatedImage.themed_name}</p>
         )}
+        {generatedImage?.themed_name && Number.isFinite(generatedImage.name_limit) && generatedImage.themed_name.length > generatedImage.name_limit && (
+          <p className="card-name-warning">Nombre largo: puede no caber en la carta</p>
+        )}
         <p>{card?.type_line}</p>
         {card !== null && (
           <div className="card-assignment">

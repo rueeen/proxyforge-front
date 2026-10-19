@@ -471,3 +471,31 @@
 .borderless > .proxy-art-image {
   max-width: none;
 }
+
+.proxy-title-bar {
+  position: relative;
+}
+
+.proxy-title-bar h3 {
+  text-overflow: ellipsis;
+}
+
+.proxy-title-bar.proxy-name-clipped::after {
+  content: "…";
+  position: absolute;
+  right: .5mm;
+  bottom: -.7mm;
+  z-index: 4;
+  padding: 0 .5mm;
+  border-radius: .6mm;
+  background: var(--frame-accent);
+  color: var(--stats-text);
+  font: 700 6pt Georgia, serif;
+  line-height: 1;
+}
+
+@media print {
+  .proxy-title-bar.proxy-name-clipped::after {
+    display: none;
+  }
+}
