@@ -155,3 +155,11 @@
 .deck-resolution-control select { padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-raised); color: var(--text); }
 .deck-resolution-control p { margin: 8px 0; font-size: .8rem; color: var(--text-muted); }
 .auto-reference-panel > button + button { margin-left: 8px; }
+
+.rewrite-texts-panel > button + button {
+  margin-left: 8px;
+}
+
+.deck-resolution-control label {
+  flex-wrap: wrap;
+}

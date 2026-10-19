@@ -259,3 +259,9 @@
 .reference-page-missing {
   color: #ffaaaa;
 }
+
+.card-info .card-name-warning {
+  margin: 4px 0;
+  color: #e8bf7a;
+  font-size: .72rem;
+}
